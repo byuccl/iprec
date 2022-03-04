@@ -211,7 +211,7 @@ def get_user_properties(g):
     return user_properties
 
 
-#This function needs to be more a strctural check, not just a naming check - dpm is all the same 0-3 in defualt fft
+#This function needs to be more a strctural check, not just a naming check - 
 def compare_templates(g1,template_file_name):
     g2 = igraph.Graph.Read_Pickle(template_file_name)
     v1_top = g1.vs[0]
