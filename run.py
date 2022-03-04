@@ -20,7 +20,7 @@ args = parser.parse_args()
 print(args)
 
 if args.design == "NONE":
-    os.system("python3 create_data.py --ip=" + args.ip + " --random_count=" + str(args.count) + " --part="+args.part)   
+    #os.system("python3 create_data.py --ip=" + args.ip + " --random_count=" + str(args.count) + " --part="+args.part)   
     os.system("python3 create_lib.py --ip=" + args.ip)      
 else:
     os.system("python3 search_lib.py "+args.design+" --ip=" + args.ip)   

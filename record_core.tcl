@@ -90,29 +90,30 @@ proc record_core {file_name} {
             puts $f ",\"BEL_PROPERTIES\":\{"
             set B [get_bels -of_objects $C]
             set j 0
-            if { $B == ""} {continue }
-            if {[llength $B] > 1} {
-                # LUT6_2 returns two bels for the single cell C
-                foreach b $B {
-                    set bel_name [lindex [split $b "/"] 1]
-                    set bel_name [string map [list "A" "" "B" "" "C" "" "D" ""] $bel_name]
-                    foreach P [list_property $b] {
+            if { $B != ""} {
+                if {[llength $B] > 1} {
+                    # LUT6_2 returns two bels for the single cell C
+                    foreach b $B {
+                        set bel_name [lindex [split $b "/"] 1]
+                        set bel_name [string map [list "A" "" "B" "" "C" "" "D" ""] $bel_name]
+                        foreach P [list_property $b] {
+                            if {[string first "CONFIG." $P] == -1} { continue }
+                            if {[string first ".VALUES" $P] != -1} { continue }
+                            set val [get_property $P $b]
+                            if {$j} { puts $f ","}
+                            puts $f "\"$bel_name.$P\":\"$val\""
+                            incr j
+                        }
+                    }
+                } else {
+                    foreach P [list_property $B] {
                         if {[string first "CONFIG." $P] == -1} { continue }
                         if {[string first ".VALUES" $P] != -1} { continue }
-                        set val [get_property $P $b]
+                        set val [get_property $P $B]
                         if {$j} { puts $f ","}
-                        puts $f "\"$bel_name.$P\":\"$val\""
+                        puts $f "\"$P\":\"$val\""
                         incr j
                     }
-                }
-            } else {
-                foreach P [list_property $B] {
-                    if {[string first "CONFIG." $P] == -1} { continue }
-                    if {[string first ".VALUES" $P] != -1} { continue }
-                    set val [get_property $P $B]
-                    if {$j} { puts $f ","}
-                    puts $f "\"$P\":\"$val\""
-                    incr j
                 }
             }
             puts $f "\}"
@@ -155,15 +156,17 @@ proc record_flat_core {file_name} {
         puts $f ",\"BEL_PROPERTIES\":\{"
         set B [get_bels -of_objects $C]
         set j 0
-        if { $B == ""} { continue }
-        if { [llength $B] != 1} { continue }
-        foreach P [list_property $B] {
-            if {[string first "CONFIG." $P] == -1} { continue }
-            if {[string first ".VALUES" $P] != -1} { continue }
-            set val [get_property $P $B]
-            if {$j} { puts $f ","}
-            puts $f "\"$P\":\"$val\""
-            incr j
+        if { $B != ""} { 
+            if { [llength $B] == 1} {
+                foreach P [list_property $B] {
+                    if {[string first "CONFIG." $P] == -1} { continue }
+                    if {[string first ".VALUES" $P] != -1} { continue }
+                    set val [get_property $P $B]
+                    if {$j} { puts $f ","}
+                    puts $f "\"$P\":\"$val\""
+                    incr j
+                }
+            }
         }
         puts $f "\}"
         puts $f "\}"
