@@ -9,25 +9,21 @@ from igraph import *
 from compare_v import *
 from multiprocessing import Pool
 
+# This script takes in a design (.dcp file) and an IP core name and searches for the IP core within the design
+
 parser = argparse.ArgumentParser()
 parser.add_argument('file_name', nargs=1)    
 parser.add_argument('--ip',default="xilinx.com:ip:c_accum:12.0")    # Selects the target tile typ
-parser.add_argument('--ver',default="NONE")    # Selects the target tile typee
 
 args = parser.parse_args()
 print(args)
 
 ip = args.ip  
 file_name = args.file_name[0]
-
 templates = {}
 prim_count = 0
 mapped_list = []
 used_list = {}
-
-##================================================================================##
-##                                  FIND SUBGRAPH                                 ##
-##================================================================================##  
 
 # Parses library folder and creates dictionary structure of all templates
 def init_templates():

@@ -9,6 +9,13 @@ import numpy as np
 import re
 import pickle
 
+# This script combines each step in the flow for IPRec, and creates a select between "creating the library for the first time", and "searching for the IP in a design"
+    # IP Characterization: 
+        # 1. From a selected IP Core, it launches the "specimen generation" step that generates all of the randomized designs
+        # 2. Executes the library creation step with the generated data to create a library of all of the hierarchical cells seen in the designs created in step 1.
+    # IP Search:
+        # 1. Launches the IP search script that searchs for the IP within the given design (.dcp file)
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--ip',default="xilinx.com:ip:c_accum:12.0")    # Selects the target IP
 parser.add_argument('--count',default=100)                          # Number of random IP 

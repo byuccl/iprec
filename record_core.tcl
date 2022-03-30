@@ -1,9 +1,17 @@
-# Records the implemented design into a JSON file structure used for importing it into an iGraph
+
+# This script opens a checkpoint file, and exports all of the design's properties into a JSON that can be parsed and imported into iGraph.
+    # There is also an option to keep hierarchy (record_core), or flatten all of the hierarchy (record_flat_core)
+
+# This function is used in create_data.py that will export the IP core design into a JSON file to be imported into iGraph
 proc record_core {file_name} {
     open_checkpoint "$file_name.dcp"
     set f [open "$file_name.json" w]
     set i 0
     puts $f "\{\"NETS\":\{"
+    # Record all the of Nets properties, which needs:
+        # Which Hier. Cell pins it is connected to
+        # Which Leaf Cell pins it is connected to
+        # Which pin is the driver
     foreach N [get_nets -segments -hierarchical] {
         if {$i} { puts $f ","}
         incr i
@@ -50,10 +58,11 @@ proc record_core {file_name} {
     }
 
     puts $f "\},\"CELLS\":\{"
-    # Why is this neccesary? For some reason list_property on a synthesized out of context design will fail because 
-    # "ERROR: [Constraints 18-608] We cannot route the nets within the site SLICE_X5Y44. Reason: Conflicting nets for physical connection CEUSEDMUX_OUT driven by SLICE_X5Y44.CEUSEDMUX.OUT"
-    # Running list property once for every cell, the second time list property won't fail with this error
-    # I think it has to do with the HD_IDF_PR_InsertedInst: being added when list_property is run...? 
+    # Records the current state of all of the Cell's in the design, which includes:
+        # The type of cell it is (ref name)
+        # The parent cell
+        # What BEL it is mapped to
+        # All of the corresponding BEL's properties
     set cell_list [get_cells -hierarchical]
     foreach C $cell_list {
         catch {list_property $C }
@@ -124,8 +133,8 @@ proc record_core {file_name} {
     close $f
 }
 
-
 # Records a benchmark design into a flat JSON file structure used for importing it into an iGraph
+    # This is used in the search_lib.py script to export the input design into iGraph to be searched
 proc record_flat_core {file_name} {
     puts "FLATTENING DCP"
     open_checkpoint "$file_name.dcp"
@@ -133,6 +142,10 @@ proc record_flat_core {file_name} {
     set i 0
     set count 0
     puts $f "\{\"CELLS\":\{"
+    # Records the current state of all of the leaf Cells, which needs:
+        # What type of cell it is (ref_name)
+        # What BEL it is mapped to
+        # All of the corresponding BEL's properties
     foreach C [get_cells -hierarchical -filter "IS_PRIMITIVE==1"]  {
         set ref_name [get_property REF_NAME $C]
         set loc [get_property LOC $C]
@@ -173,6 +186,8 @@ proc record_flat_core {file_name} {
     }
     puts $f "\}"
     puts $f ",\"NETS\":\{"
+    # Record all the of Nets properties, which needs:
+        # Which Leaf Cell pins it is connected to
     set i 0
     set count 0
     foreach N [get_nets -hierarchical -segments -top_net_of_hierarchical_group ] {
