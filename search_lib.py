@@ -25,35 +25,6 @@ prim_count = 0
 mapped_list = []
 used_list = {}
 
-# Parses library folder and creates dictionary structure of all templates
-def init_templates():
-    global templates,used_list
-    for x in os.listdir("library/" + ip + "/templates/"):
-        templates[x] = {}
-        for y in os.listdir("library/" + ip + "/templates/" + x + "/"):
-            templates[x][y] = {}
-            templates[x][y]["file"] = "library/" + ip + "/templates/" + x + "/" + y
-            g_template = igraph.Graph.Read_Pickle(templates[x][y]["file"])
-            for t in g_template.vs.select(IS_PRIMITIVE=0,id_ne=0):
-                if t["ref"] not in used_list:
-                    used_list[t["ref"]] = [x]
-                else:
-                    used_list[t["ref"]] += [x]
-            span_dict = []
-            for span in g_template["primitive_span"]:
-                tmp_dict = {}
-                tmp_dict["indices"] = span
-                tmp_dict["size"] = len(span)
-                tmp_dict["matches"] = []
-                span_dict.append(tmp_dict)
-            templates[x][y]["span"] = span_dict
-            templates[x][y]["primitive_count"] = g_template["primitive_count"]
-    for x in used_list:
-        used_list[x] = list(set(used_list[x]))
-    fj = open("library/" + ip + "/templates.json",'w')
-    template_json = json.dumps(templates,indent=2,sort_keys=True)
-    print(template_json,file=fj)
-    fj.close()           
 
 # Checks if the incoming hier template matches port definitions
 def replace_pre_check(g,v1_id,g_hier):
@@ -378,11 +349,12 @@ def descend(g,g_template,pass_mapping,limit_vertices):
     return_mapping = pass_mapping
     descend_pass_flag = 1
     best_length = 0
+    best_average = 0
     best_decision = None
     while (1):
         #save_checkpoint(g,g_template,return_mapping)
         #print("\n#### NEW DESCENDED ITERATION #####", g_template.vcount())
-        decision_list = {}
+        decision_list = []
         #v_hier_id_list = g_template.vs.select(IS_PRIMITIVE=0,id_ne=0)["id"]
         #print_graph(g_template)
         v_hier_id_list = get_spanning_hier_cells(g_template,pass_mapping,limit_vertices)
@@ -396,6 +368,7 @@ def descend(g,g_template,pass_mapping,limit_vertices):
             #print("\tID:",v_hier_id,ref)
             pass_num = 0
             possible_matches = []
+            average = 0
             new_vertex_list = []
             g_temp = g_template
             g_par = g
@@ -410,9 +383,15 @@ def descend(g,g_template,pass_mapping,limit_vertices):
                 if x:
                     pass_num += 1
                     possible_matches.append(versions[idx])
+                    average += (templates[ref][versions[idx]]["primitive_count"])
                 else:
                     descend_failed_dict[v_par_id].append(versions[idx])
                     #print("POSSIBLE",versions[idx])
+            average = average / pass_num
+            print("AVERAGE:",average,pass_num,best_average)
+            if average >= best_average:
+                best_average = average
+                decision_list = [v_par_id,ref,possible_matches]
             #print("\tFAILED:",descend_failed_dict[v_par_id])
             if pass_num == 1:
                 ret_graph = 1
@@ -429,7 +408,7 @@ def descend(g,g_template,pass_mapping,limit_vertices):
                     if x > best_length:
                         best_decision = [v_par_id,ref,versions[idx]]
                         best_length = x
-                decision_list[v_hier_id] = possible_matches
+                #decision_list[v_hier_id] = possible_matches
                 #print("\tPASSED NUM:",pass_num)
             else:
                 #print("\tNO MATCHING TEMPLATES:",pass_num)
@@ -443,7 +422,7 @@ def descend(g,g_template,pass_mapping,limit_vertices):
         if updated_flag == 0:
             break
 
-    return g_template, return_mapping, best_decision, descend_pass_flag
+    return g_template, return_mapping, best_decision, descend_pass_flag, decision_list
 
 def ascend(g,g_template,pass_mapping):
     global templates
@@ -543,7 +522,7 @@ def recurse_ascend(ascend_decision_list,g,g_template,mapping,depth):
         return g_ascended,mapping_ascended, 1
 
 
-def run_replace(g,g_template,mapping,depth):
+def run_replace_greedy(g,g_template,mapping,depth):
     global descend_failed_dict
     #print("\n#### Starting Ascend/descend Function ####\n DEPTH:",depth)
     if depth >= 2:
@@ -555,7 +534,7 @@ def run_replace(g,g_template,mapping,depth):
         while(1):
             # Descend as much as possible
             original_length = len(g_template.vs)
-            g_template, mapping, descend_decision_dec, descend_pass_flag = descend(g,g_template,mapping,None)
+            g_template, mapping, descend_decision_dec, descend_pass_flag, dec_list = descend(g,g_template,mapping,None)
             g_template, mapping, ascend_decision_list = ascend(g,g_template,mapping)
             if len(g_template.vs) == original_length:
                 break     
@@ -571,7 +550,44 @@ def run_replace(g,g_template,mapping,depth):
     #print("\n###########\n################### END OF RUN REPLACE ############################\n###########\n")
     #return g_template, mapping
     return None
-            
+
+
+def run_replace(g,g_template,mapping,depth):
+    global descend_failed_dict
+    biggest_graph = g_template
+    biggest_map = mapping
+    print("\n#### Starting Ascend/descend Function ####\n DEPTH:",depth)
+    while(1):
+        descend_decision_dec,ascend_decision_dec = None, []
+        while(1):
+            # Descend as much as possible
+            original_length = len(g_template.vs)
+            g_template, mapping, descend_decision_dec, descend_pass_flag, dec_list = descend(g,g_template,mapping,None)
+            g_template, mapping, ascend_decision_list = ascend(g,g_template,mapping)
+            if len(g_template.vs) == original_length:
+                break     
+        # Ascending and Descending has settled
+        if len(mapping) > len(biggest_map):
+            biggest_map = mapping
+            biggest_graph = g_template
+        # Recursively Try all Descending decisions
+        print("DEC LIST:",dec_list)
+        if len(dec_list) != 0:
+            for x in dec_list[2]:
+                ref = dec_list[1]
+                v_par_id = dec_list[0]
+                g_descended, mapping_descended, new_vertex_list = descend_parallel(x)
+                run_replace(g,g_descended,mapping_descended,depth+1) # Recurse
+                if len(mapping_descended) > len(biggest_map):
+                    biggest_map = mapping_descended
+                    biggest_graph = g_descended
+        else:
+            g_template, mapping, recurse_pass_flag = recurse_ascend(ascend_decision_list,g,g_template,mapping,depth)
+        if recurse_pass_flag == 0 and descend_decision_dec == None and len(ascend_decision_list) == 0:
+            return biggest_graph, biggest_map
+    #print("\n###########\n################### END OF RUN REPLACE ############################\n###########\n")
+    #return g_template, mapping
+    return None          
 
 
 def find_template(g,g_template,verbose,template,ver):
@@ -604,38 +620,20 @@ def find_template(g,g_template,verbose,template,ver):
                 if len(tmp_mapping) > len(biggest_map):
                     biggest_map = tmp_mapping
                     biggest_graph = g_tmp_template.copy()  
-       
-
-    fj = open("library/" + ip + "/templates.json",'w')
-    template_json = json.dumps(templates,indent=2,sort_keys=True)
-    print(template_json,file=fj)
-    fj.close() 
     return biggest_graph,biggest_map
 
-
-
-
-##================================================================================##
-##                                     MAIN                                       ##
-##================================================================================##   
 
 
 def search(g):
     global prim_count, templates
     count = 0
     biggest_map, biggest_graph = [],None
-    ver_axi_wrapper = args.ver
     while(count < 1):
         count += 1
         for x in templates:
             for y in templates[x]:
                 g_template = igraph.Graph.Read_Pickle(templates[x][y]["file"])
                 verbose = 0
-                # CHOOSE WHERE TO START
-                # If more than some threshold, need to keep the mapping, and start at a different location. Or maybe just merge all afterwards?
-                #if "MicroBlaze" in x and y in [ver_axi_wrapper]:
-                #if "axi_wrapper" in x and y in [ver_axi_wrapper]:
-                    #if "xfft_v9_1_5_d" in x and y in ["0.pkl"]:
                 g_template_tmp,tmp_template_mapping = find_template(g,g_template,verbose,x,y)
                 if tmp_template_mapping != 0 and len(tmp_template_mapping) > len(biggest_map):
                     biggest_map = tmp_template_mapping
@@ -706,12 +704,18 @@ def import_dcp(file_name):
 
 
 def main():
-    global file_name
+    global file_name, templates, used_list
     if ".dcp" in file_name:
         import_dcp(file_name)
         file_name = file_name.replace(".dcp",".json")
 
-    init_templates()
+    fj = open("library/" + ip + "/templates.json")
+    tmp = json.load(fj) 
+    templates = tmp["templates"]
+    used_list = tmp["used"]
+    fj.close()
+
+
     if os.path.exists(file_name.replace(".json",".pkl")) == False:
         fj = open(file_name)
         design = json.load(fj) 
