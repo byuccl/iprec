@@ -1,77 +1,85 @@
 {
-  "LEAF": [],
-  "U0": {
-    "LEAF": [],
-    "i_synth": {
-      "LEAF": [],
-      "i_baseblox.i_baseblox_accum": {
-        "LEAF": [],
-        "i_gen_accum_fabric.i_accum_fabric": {
-          "LEAF": [],
-          "the_addsub": {
-            "LEAF": [],
-            "no_pipelining.the_addsub": {
-              "LEAF": [
-                "GND",
-                "i_simple_model.carrymux0_CARRY4",
-                "i_simple_model.carrymux0_CARRY4_GND",
-                "i_simple_model.carrymux0_i_1",
-                "i_simple_model.carrymux0_i_3",
-                "i_simple_model.i_gt_1.carrychaingen[10].carrymux_i_1",
-                "i_simple_model.i_gt_1.carrychaingen[11].carrymux_i_1",
-                "i_simple_model.i_gt_1.carrychaingen[12].carrymux_CARRY4",
-                "i_simple_model.i_gt_1.carrychaingen[12].carrymux_CARRY4_GND",
-                "i_simple_model.i_gt_1.carrychaingen[12].carrymux_i_1",
-                "i_simple_model.i_gt_1.carrychaingen[13].carrymux_i_1",
-                "i_simple_model.i_gt_1.carrychaingen[14].carrymux_i_1",
-                "i_simple_model.i_gt_1.carrychaingen[1].carrymux_i_1",
-                "i_simple_model.i_gt_1.carrychaingen[2].carrymux_i_1",
-                "i_simple_model.i_gt_1.carrychaingen[3].carrymux_i_1",
-                "i_simple_model.i_gt_1.carrychaingen[4].carrymux_CARRY4",
-                "i_simple_model.i_gt_1.carrychaingen[4].carrymux_CARRY4_GND",
-                "i_simple_model.i_gt_1.carrychaingen[4].carrymux_i_1",
-                "i_simple_model.i_gt_1.carrychaingen[5].carrymux_i_1",
-                "i_simple_model.i_gt_1.carrychaingen[6].carrymux_i_1",
-                "i_simple_model.i_gt_1.carrychaingen[7].carrymux_i_1",
-                "i_simple_model.i_gt_1.carrychaingen[8].carrymux_CARRY4",
-                "i_simple_model.i_gt_1.carrychaingen[8].carrymux_CARRY4_GND",
-                "i_simple_model.i_gt_1.carrychaingen[8].carrymux_i_1",
-                "i_simple_model.i_gt_1.carrychaingen[9].carrymux_i_1",
-                "i_simple_model.i_gt_1.carryxortop_i_1"
-              ],
-              "i_q.i_simple.qreg": {
-                "LEAF": [
-                  "VCC",
-                  "i_no_async_controls.output_reg[10]",
-                  "i_no_async_controls.output_reg[11]",
-                  "i_no_async_controls.output_reg[12]",
-                  "i_no_async_controls.output_reg[13]",
-                  "i_no_async_controls.output_reg[14]",
-                  "i_no_async_controls.output_reg[15]",
-                  "i_no_async_controls.output_reg[16]",
-                  "i_no_async_controls.output_reg[1]",
-                  "i_no_async_controls.output_reg[2]",
-                  "i_no_async_controls.output_reg[3]",
-                  "i_no_async_controls.output_reg[4]",
-                  "i_no_async_controls.output_reg[5]",
-                  "i_no_async_controls.output_reg[6]",
-                  "i_no_async_controls.output_reg[7]",
-                  "i_no_async_controls.output_reg[8]",
-                  "i_no_async_controls.output_reg[9]",
-                  "i_simple_model.carrymux0_i_2",
-                  "i_simple_model.i_gt_1.carrychaingen[1].carrymux_i_2",
-                  "i_simple_model.i_gt_1.carrychaingen[2].carrymux_i_2",
-                  "i_simple_model.i_gt_1.carrychaingen[3].carrymux_i_2",
-                  "i_simple_model.i_gt_1.carrychaingen[4].carrymux_i_2",
-                  "i_simple_model.i_gt_1.carrychaingen[5].carrymux_i_2",
-                  "i_simple_model.i_gt_1.carrychaingen[6].carrymux_i_2",
-                  "i_simple_model.i_gt_1.carrychaingen[7].carrymux_i_2"
-                ]
-              }
-            }
-          }
-        }
-      }
-    }
+  "LEAF": [
+    "GND",
+    "VCC",
+    "minusOp_carry",
+    "minusOp_carry__0",
+    "minusOp_carry__0__0",
+    "minusOp_carry__0__0_i_1",
+    "minusOp_carry__0__0_i_2",
+    "minusOp_carry__0__0_i_3",
+    "minusOp_carry__0__0_i_4",
+    "minusOp_carry__0_i_1",
+    "minusOp_carry__0_i_2",
+    "minusOp_carry__0_i_3",
+    "minusOp_carry__0_i_4",
+    "minusOp_carry__1",
+    "minusOp_carry__2",
+    "minusOp_carry__2_i_1",
+    "minusOp_carry__2_i_2",
+    "minusOp_carry__2_i_3",
+    "minusOp_carry__2_i_4",
+    "minusOp_carry__2_i_5",
+    "minusOp_carry_i_1",
+    "minusOp_carry_i_2",
+    "minusOp_carry_i_3",
+    "minusOp_carry_i_4"
+  ],
+  "i_accum_seg[1].i_sum_pipe": {
+    "LEAF": [
+      "GND",
+      "opt_has_pipe.first_q_reg[0]",
+      "opt_has_pipe.first_q_reg[1]",
+      "opt_has_pipe.first_q_reg[2]",
+      "opt_has_pipe.first_q_reg[3]",
+      "opt_has_pipe.first_q_reg[4]",
+      "opt_has_pipe.first_q_reg[5]",
+      "opt_has_pipe.first_q_reg[6]",
+      "opt_has_pipe.first_q_reg[7]"
+    ]
+  },
+  "i_accum_seg[1].i_sum_reg": {
+    "LEAF": [
+      "GND",
+      "opt_has_pipe.first_q[0]_i_1",
+      "opt_has_pipe.first_q_reg[0]",
+      "opt_has_pipe.first_q_reg[1]",
+      "opt_has_pipe.first_q_reg[2]",
+      "opt_has_pipe.first_q_reg[3]",
+      "opt_has_pipe.first_q_reg[4]",
+      "opt_has_pipe.first_q_reg[5]",
+      "opt_has_pipe.first_q_reg[6]",
+      "opt_has_pipe.first_q_reg[7]",
+      "opt_has_pipe.first_q_reg[8]"
+    ]
+  },
+  "i_accum_seg[2].i_b_pipe": {
+    "LEAF": [
+      "GND",
+      "opt_has_pipe.first_q_reg[0]",
+      "opt_has_pipe.first_q_reg[1]",
+      "opt_has_pipe.first_q_reg[2]",
+      "opt_has_pipe.first_q_reg[3]",
+      "opt_has_pipe.first_q_reg[4]",
+      "opt_has_pipe.first_q_reg[5]",
+      "opt_has_pipe.first_q_reg[6]",
+      "opt_has_pipe.first_q_reg[7]"
+    ]
+  },
+  "i_accum_seg[2].i_sum_reg": {
+    "LEAF": [
+      "GND",
+      "opt_has_pipe.first_q_reg[0]",
+      "opt_has_pipe.first_q_reg[1]",
+      "opt_has_pipe.first_q_reg[2]",
+      "opt_has_pipe.first_q_reg[3]",
+      "opt_has_pipe.first_q_reg[4]",
+      "opt_has_pipe.first_q_reg[5]",
+      "opt_has_pipe.first_q_reg[6]",
+      "opt_has_pipe.first_q_reg[7]"
+    ]
+  },
+  "piped_fabric_implementation.i_fab_pipe_accum": {
+    "LEAF": []
   }
 }

@@ -512,7 +512,8 @@ def recurse_ascend(ascend_decision_list,g,g_template,mapping,depth):
             g_new = g_template.copy()
             g_new,pass_flag,new_vertices = replace_hier_cell(g_new,g_hier,v_id,"ascend")
             tmp_mapping = update_map(g,g_new,dict(mapping),new_vertices,0)
-            g_tmp,tmp_mapping = run_replace(g,g_new,tmp_mapping,depth+1)
+            g_tmp = g_new
+            #g_tmp,tmp_mapping = run_replace(g,g_new,tmp_mapping,depth+1)
             if len(tmp_mapping) >= len(mapping_ascended):
                 g_ascended = g_tmp.copy()
                 mapping_ascended = dict(tmp_mapping)
@@ -553,12 +554,14 @@ def run_replace_greedy(g,g_template,mapping,depth):
 
 
 def run_replace(g,g_template,mapping,depth):
-    global descend_failed_dict
+    global descend_failed_dict,templates,ref,g_temp,v_par_id,ret_graph,g_par, return_mapping
     biggest_graph = g_template
     biggest_map = mapping
+    recurse_pass_flag = 0
     print("\n#### Starting Ascend/descend Function ####\n DEPTH:",depth)
     while(1):
         descend_decision_dec,ascend_decision_dec = None, []
+        dec_list = []
         while(1):
             # Descend as much as possible
             original_length = len(g_template.vs)
@@ -573,14 +576,20 @@ def run_replace(g,g_template,mapping,depth):
         # Recursively Try all Descending decisions
         print("DEC LIST:",dec_list)
         if len(dec_list) != 0:
+            print("DESCENDING RECURSIVE:",dec_list)
             for x in dec_list[2]:
                 ref = dec_list[1]
                 v_par_id = dec_list[0]
+                g_temp = g_template
+                g_par = g
+                ret_graph = 1
                 g_descended, mapping_descended, new_vertex_list = descend_parallel(x)
-                run_replace(g,g_descended,mapping_descended,depth+1) # Recurse
+                g_descended, mapping_descended = run_replace(g,g_descended,mapping_descended,depth+1) # Recurse
                 if len(mapping_descended) > len(biggest_map):
                     biggest_map = mapping_descended
                     biggest_graph = g_descended
+            g_template = biggest_graph    
+            mapping = biggest_map
         else:
             g_template, mapping, recurse_pass_flag = recurse_ascend(ascend_decision_list,g,g_template,mapping,depth)
         if recurse_pass_flag == 0 and descend_decision_dec == None and len(ascend_decision_list) == 0:
