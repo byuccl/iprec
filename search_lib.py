@@ -18,6 +18,8 @@ parser.add_argument('--ip',default="xilinx.com:ip:c_accum:12.0")    # Selects th
 args = parser.parse_args()
 print(args)
 
+greedy_method = 1
+
 ip = args.ip  
 file_name = args.file_name[0]
 templates = {}
@@ -171,7 +173,6 @@ def save_checkpoint(g,g_template,mapping):
             print("\t\tSAVING CHECKPOINT:",i,len(mapping))
             with open(file_name, 'wb') as handle:
                 pickle.dump(mapping, handle, protocol=pickle.HIGHEST_PROTOCOL)
-            #characterize_map(g,g_template,mapping,i)
             g_template.write_pickle(fname=file_name.replace(".mapping",".graph"))
             break
 
@@ -184,84 +185,28 @@ def open_checkpoint(i):
     g = igraph.Graph.Read_Pickle(file_name.replace(".mapping",".graph"))
     return g,mapping
 
-
-def characterize_map(g,g_template,mapping,i):
-    print("CHARACTERIZING MAP",len(mapping))
-    fj = open("checkpoints/checkpoint." + str(i) + ".tcl",'w')
-    
-    print("create_property MAPPED cell",file=fj)
-    print("set_property MAPPED 0 [get_cells -hierarchical]",file=fj)
-    
-    for x in mapping:
-        cell_str = "set_property MAPPED 1 [get_cells " + (g.vs[x]["CELL_NAME"] ) + " ]"
-        print(cell_str,file=fj)
-    fj.close() 
-
-    fj = open("checkpoints/checkpoint." + str(i) + ".txt",'w')
-    print("LENGTH NON MAPPED:",len(g_template.vs.select(color="green")),file=fj)
-    for x in g_template.vs.select(color="green"):
-        print("\n\tUNMAPPED:",x.index,x["ref"],file=fj)
-        color_count = {}
-
-        for e in x.out_edges():
-            color = g_template.vs[e.target]["color"]
-            if color not in color_count:
-                color_count[color] = 1
-            else:
-                color_count[color] = color_count[color] + 1
-        for e in x.in_edges():
-            color = g_template.vs[e.source]["color"]
-            if color not in color_count:
-                color_count[color] = 1
-            else:
-                color_count[color] = color_count[color] + 1
-
-        print("\t\tCOLORS:",color_count,file=fj)
-    fj.close() 
-
-
-
 def print_json_map(g,g_template,mapping):
     design = {"LEAF":[]}
-    
-    #for x in mapping:
-    #    print(g_template.vs[mapping[x]]["name"])
     mapping_rev = {}
     for x in mapping:
         mapping_rev[mapping[x]] = x
 
     for x in g_template.vs:
-        #print(x,return_mapping[x])
-        #a = g.vs[x]["CELL_NAME"]
         b = x["name"]
         hier = b.split("/")
         D = design
         
         for i in range(len(hier)-1):
-            #print("\tI:",hier[i],i)
             H = hier[i]
             if H not in D:
                 D[H] = {"LEAF":[]}
             D = D[H]
-        #print("CELL:",hier,D,design)
-        #if "LEAF" not in D:
-        #    print("ERROR",hier)
-        #else:
         if x["color"] == "orange":
-            #if x.index in mapping_rev:
-            #    D["LEAF"] += [(hier[-1],g.vs[mapping_rev[x.index]]["name"])]
-            #else:
-            #    D["LEAF"] += [(hier[-1],"NONE")]
             D["LEAF"] += [hier[-1]]
         elif x["color"] == "green":
             D[hier[-1]] =  {"LEAF":[]}
         else:
             print("BLACK:",hier)
-
-        #if a.split("/")[-1] != b:
-        #    print("\t\t\t",x,mapping[x],a," -> " ,b, "####### NOT EQUAL")
-        #else:
-        #print("\t\t\t",x,mapping[x],a," -> " ,b)
     fj = open("design.json",'w')
     json_design = json.dumps(design,indent=2,sort_keys=True)
     print(json_design,file=fj)
@@ -295,8 +240,6 @@ def update_map(g,g_template,mapping,new_vertices,verbose):
 
     return mapping
 
-
-# How does the recursion effect this?
 descend_failed_dict = {}
 
 
@@ -313,21 +256,13 @@ def print_map_cells(mapping,g,g_template):
         else:
             print("\t\t\t",x,mapping[x],a," -> " ,b)
 
-
-
-
 def descend_parallel(ver):
     global templates,ref,g_temp,v_par_id,ret_graph,g,g_par, return_mapping
-    #print("TESTING:",ref,ver)
     g_hier = igraph.Graph.Read_Pickle(templates[ref][ver]["file"])
     g_new = g_temp.copy()
     g_new,pass_flag, new_vertices = replace_hier_cell(g_new,g_hier,v_par_id,"descend")
     tmp_graph = g_new.copy()
-    #g_new.delete_vertices(0)
     if pass_flag == 1:
-        #if ref == "axi_wrapper":
-        #    mapping = update_map(g,g_new,dict(return_mapping),new_vertices,1)
-        #else:
         mapping = update_map(g_par,g_new,dict(return_mapping),new_vertices,0)
         if mapping != 0:
             if ret_graph == 1: 
@@ -336,10 +271,6 @@ def descend_parallel(ver):
                 return len(mapping)
             else:
                 return 1
-            #print("\t\tPASSED:",ref,ver,ref_results[ver])#,"DESCENDED MAP:",mapping)
-            #possible_matches.append(ver)    
-        #else:
-        #    print("\t\tPASSED HIER REPLACE, FAILED SEARCH",ref,ver)
     return 0
 
 def descend(g,g_template,pass_mapping,limit_vertices):
@@ -352,20 +283,14 @@ def descend(g,g_template,pass_mapping,limit_vertices):
     best_average = 0
     best_decision = None
     while (1):
-        #save_checkpoint(g,g_template,return_mapping)
-        #print("\n#### NEW DESCENDED ITERATION #####", g_template.vcount())
         decision_list = []
-        #v_hier_id_list = g_template.vs.select(IS_PRIMITIVE=0,id_ne=0)["id"]
-        #print_graph(g_template)
         v_hier_id_list = get_spanning_hier_cells(g_template,pass_mapping,limit_vertices)
-        #print("ID LIST:",v_hier_id_list)
         updated_flag = 0
         for v_hier_id in v_hier_id_list:
 
             if v_hier_id not in descend_failed_dict:
                 descend_failed_dict[v_hier_id] = []
             ref = g_template.vs.find(id=v_hier_id)["ref"]
-            #print("\tID:",v_hier_id,ref)
             pass_num = 0
             possible_matches = []
             average = 0
@@ -377,8 +302,6 @@ def descend(g,g_template,pass_mapping,limit_vertices):
             versions = list(x for x in templates[ref].keys() if x not in descend_failed_dict[v_par_id])
             pool = Pool(processes=8)
             results = pool.map(descend_parallel,versions)
-            #print("RESULTS",v_hier_id,results)
-            
             for idx,x in enumerate(results):
                 if x:
                     pass_num += 1
@@ -386,39 +309,26 @@ def descend(g,g_template,pass_mapping,limit_vertices):
                     average += (templates[ref][versions[idx]]["primitive_count"])
                 else:
                     descend_failed_dict[v_par_id].append(versions[idx])
-                    #print("POSSIBLE",versions[idx])
             average = average / pass_num
             print("AVERAGE:",average,pass_num,best_average)
             if average >= best_average:
                 best_average = average
                 decision_list = [v_par_id,ref,possible_matches]
-            #print("\tFAILED:",descend_failed_dict[v_par_id])
             if pass_num == 1:
                 ret_graph = 1
                 g_template, return_mapping, new_vertex_list = descend_parallel(possible_matches[0])
-                #print("\tREPLACING!",ref)
                 if limit_vertices != None:
                     limit_vertices += new_vertex_list
                 else:
                     limit_vertices = new_vertex_list
                 updated_flag = 1
-                #print_graph(g_template)
             elif pass_num > 1:
                 for idx,x in enumerate(results):
                     if x > best_length:
                         best_decision = [v_par_id,ref,versions[idx]]
                         best_length = x
-                #decision_list[v_hier_id] = possible_matches
-                #print("\tPASSED NUM:",pass_num)
             else:
-                #print("\tNO MATCHING TEMPLATES:",pass_num)
-                #print_map_cells(return_mapping,g,g_template)
                 descend_pass_flag = 0
-                #print_graph(g_template)
-                #return g_template, return_mapping, {}, 0
-        #print("END OF ITERATION MAP:",len(return_mapping),decision_list,return_mapping)
-        #print_graph(g_template)
-        #print_map_cells(return_mapping,g,g_template)
         if updated_flag == 0:
             break
 
@@ -430,65 +340,41 @@ def ascend(g,g_template,pass_mapping):
     pass_graph = ""
     return_mapping = pass_mapping
     
-    # Only go up one, then rerun the descend
-    #while (1):
     decision_list = {}
     root_node = g_template.vs[0]
-    #print("\n#### NEW ASCENDING ITERATION #####")
     pass_num = 0
-    #print("ROOT REF:",root_node["ref"])
     updated_flag = 0
     if root_node["ref"] in used_list:
-        #print("\tUSED LIST:",used_list[root_node["ref"]])
         for ref in used_list[root_node["ref"]]:
             possible_matches = []
-            #print("\t\tTESTING WITH REF:",ref)
             for ver in templates[ref]:
-                #print("\t\t\tTESTING WITH VER:",ver)
                 g_hier = igraph.Graph.Read_Pickle(templates[ref][ver]["file"])
 
                 g_new = g_template.copy()
                 v_hier_top_s = g_hier.vs.select(ref=root_node["ref"])
-                #print("BEFORE:",v_hier_top_s,root_node,root_node["ref"],ref,ver,used_list)
                 for v_hier_top in v_hier_top_s:
                     g_new,pass_flag, new_vertices = replace_hier_cell(g_new,g_hier,v_hier_top["id"],"ascend")
                     tmp_graph = g_new.copy()
-                    #g_new.delete_vertices(0)
                     if pass_flag == 1:
-                        #print_graph(g_new)
                         mapping = update_map(g,g_new,dict(return_mapping),new_vertices,0)
-                        #print_graph(g_new)
                         if mapping != 0:
-                            #print("\t\tPASSED:",ref,ver)#,"ASCENDED MAP:",mapping)
                             pass_num += 1
                             possible_matches.append((ver,v_hier_top.index))
                             if pass_num == 1:
                                 pass_graph = tmp_graph.copy()
                                 pass_mapping = dict(mapping)
-                        #else:
-                        #    print("\t\tPASSED HIER REPLACE, FAILED SEARCH",ref,ver)
-                    #else:
-                    #    print("\t\tFAILED HIER REPLACE",ref,ver)
             if len(possible_matches) > 0:
-                #TODO THIS SHOULD BE AN ID
                 decision_list[ref] = possible_matches
     if pass_num == 1:
         g_template = pass_graph.copy()
         return_mapping = dict(pass_mapping)
-        #print("\tREPLACING!",ref,ver)
         updated_flag = 1
-        #print_graph(g_template)
-    #print("\tASCEND PASSED NUM:",pass_num)
-    #print_graph(g_template)
-    #if updated_flag == 0:
-    #    break
     return g_template, return_mapping, decision_list
 
 
 def recurse_descend(descend_decision_dec,g,g_template,mapping,depth):
     global templates, v_par_id,ref,ret_graph,g_par,g_temp
     print("\tRECURSE DESCEND")
-    #print("DECISION MADE:",descend_decision_dec)
     ret_graph = 1
     ref = descend_decision_dec[1]
     v_par_id = descend_decision_dec[0]
@@ -512,8 +398,10 @@ def recurse_ascend(ascend_decision_list,g,g_template,mapping,depth):
             g_new = g_template.copy()
             g_new,pass_flag,new_vertices = replace_hier_cell(g_new,g_hier,v_id,"ascend")
             tmp_mapping = update_map(g,g_new,dict(mapping),new_vertices,0)
-            g_tmp = g_new
-            #g_tmp,tmp_mapping = run_replace(g,g_new,tmp_mapping,depth+1)
+            if greedy_method == 1:
+                g_tmp,tmp_mapping = run_replace_greedy(g,g_new,tmp_mapping,depth+1)
+            else:
+                g_tmp = g_new
             if len(tmp_mapping) >= len(mapping_ascended):
                 g_ascended = g_tmp.copy()
                 mapping_ascended = dict(tmp_mapping)
@@ -525,7 +413,6 @@ def recurse_ascend(ascend_decision_list,g,g_template,mapping,depth):
 
 def run_replace_greedy(g,g_template,mapping,depth):
     global descend_failed_dict
-    #print("\n#### Starting Ascend/descend Function ####\n DEPTH:",depth)
     if depth >= 2:
         return g_template, mapping
     
@@ -540,16 +427,12 @@ def run_replace_greedy(g,g_template,mapping,depth):
             if len(g_template.vs) == original_length:
                 break     
         # Descend/Ascend has settled - need to try decisions now
-        #save_checkpoint(g,g_template,mapping)
         if descend_decision_dec != None:
             g_template, mapping, recurse_pass_flag = recurse_descend(descend_decision_dec,g,g_template,mapping,depth)
-        #print("Finished Descend Recursion of Depth:",depth)
         else:
             g_template, mapping, recurse_pass_flag = recurse_ascend(ascend_decision_list,g,g_template,mapping,depth)
         if recurse_pass_flag == 0 and descend_decision_dec == None and len(ascend_decision_list) == 0:
             return g_template, mapping
-    #print("\n###########\n################### END OF RUN REPLACE ############################\n###########\n")
-    #return g_template, mapping
     return None
 
 
@@ -594,8 +477,6 @@ def run_replace(g,g_template,mapping,depth):
             g_template, mapping, recurse_pass_flag = recurse_ascend(ascend_decision_list,g,g_template,mapping,depth)
         if recurse_pass_flag == 0 and descend_decision_dec == None and len(ascend_decision_list) == 0:
             return biggest_graph, biggest_map
-    #print("\n###########\n################### END OF RUN REPLACE ############################\n###########\n")
-    #return g_template, mapping
     return None          
 
 
@@ -612,7 +493,6 @@ def find_template(g,g_template,verbose,template,ver):
             for x in span["indices"]:
                 if g_template.vs[x]["ref"] in ["DSP48E1"]:
                     has_complex_prim = 1
-                    #print("HAS COMPLEX PRIM",g_template.vs[x]["ref"])
             if has_complex_prim == 0:
                 continue
         v2 = g_template.vs[span["indices"][0]]
@@ -624,7 +504,10 @@ def find_template(g,g_template,verbose,template,ver):
 
             if mapping != 0 and len(mapping) > 1:
                 print("####### STARTING NEW FIND TEMPLATE: #######")
-                g_tmp_template,tmp_mapping = run_replace(g,g_template,mapping,0)
+                if greedy_method == 1:
+                    g_tmp_template,tmp_mapping = run_replace_greedy(g,g_template,mapping,0)
+                else:
+                    g_tmp_template,tmp_mapping = run_replace(g,g_template,mapping,0)
                 save_checkpoint(g,g_tmp_template,tmp_mapping)
                 if len(tmp_mapping) > len(biggest_map):
                     biggest_map = tmp_mapping
@@ -734,32 +617,17 @@ def main():
         g.write_pickle(fname=file_name.replace(".json",".pkl"))
     else:
         g = igraph.Graph.Read_Pickle(file_name.replace(".json",".pkl"))
-    #print_graph(g)
 
     # Either search, or start from a known checkpoint
     g_template, template_mapping = search(g)
-
-    #print("LARGEST CHECKPOINT:")
-
-    #print_graph(g)
     #start_from_checkpoint(g,2705)
+
     if len(template_mapping)!=0:
         save_checkpoint(g,g_template,template_mapping)
         print_json_map(g,g_template,template_mapping)
         print_all_cells(g,g_template,template_mapping)
     else:
         print("NO FOUND TEMPLATES")
-
-    
-    
-    #start_from_checkpoint(g,216)
-    #print("FINAL OUTPUT:",len(template_mapping))
-
-    #parse_matches(g)
-    #print_graph(g)
-    #visualize_graph("_consumed",g)
-
-
 main()
 
 
