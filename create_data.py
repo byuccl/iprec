@@ -83,7 +83,8 @@ class DataGenerator():
         for i in range(self.random_count):
             self.source_fuzzer_file()
             self.init_design()
-            self.randomProperties()
+            if i > 1: # First design is the default one
+                self.randomProperties()
             self.gen_design(str(i))
         self.launch_file.close()
         self.run_tcl_script(self.launch_file_name)

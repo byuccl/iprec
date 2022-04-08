@@ -309,8 +309,8 @@ def descend(g,g_template,pass_mapping,limit_vertices):
                     average += (templates[ref][versions[idx]]["primitive_count"])
                 else:
                     descend_failed_dict[v_par_id].append(versions[idx])
-            average = average / pass_num
-            print("AVERAGE:",average,pass_num,best_average)
+            average = average / pass_num if pass_num != 0 else 0
+            #print("AVERAGE:",average,pass_num,best_average)
             if average >= best_average:
                 best_average = average
                 decision_list = [v_par_id,ref,possible_matches]
@@ -482,7 +482,7 @@ def run_replace(g,g_template,mapping,depth):
 
 def find_template(g,g_template,verbose,template,ver):
     global prim_count, mapped_list, templates
-    #print("SEARCHING:",template,ver)
+    print("SEARCHING:",template,ver)
     template_name = g_template.vs[0]["ref"]
     biggest_map, biggest_graph = [],None
     # have span max be on a sliding scale - based off of len(templates)
