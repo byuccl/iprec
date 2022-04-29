@@ -1,6 +1,10 @@
 # IPRec
 
-## Quick Start Guide  
+Xilinx CoreGen module recognition project.  Lead author Corey Simpson.
+
+This project was sponsored by the Oﬃce of Naval Research, subcontract through GrammaTech Inc., contract number N68335-20-C-0569.
+
+# Quick Start Guide  
 
 **Requirements:**   
 * Currently supported Python 3.8.10
