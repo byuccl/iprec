@@ -7,7 +7,11 @@ This project was sponsored by the Oﬃce of Naval Research, subcontract through 
 # Quick Start Guide  
 
 **Requirements:**   
-* Currently supported Python 3.8.10
+* Python 3.8.10
+* Python packages:
+```
+pip install igraph
+```
 * **Vivado 2020.2** is installed and sourced: 
 ```
 source /tools/Xilinx/Vivado/2020.2/settings64.sh
@@ -18,7 +22,7 @@ source /tools/Xilinx/Vivado/2020.2/settings64.sh
 1. Run the library creation Accumulator IP, targeting the artix7 using the default part xc7a100ticsg324-1L  
 
 ```
-python3 run.py --ip=xilinx.com:ip:c_accum:12.0 --count=100  
+python run.py --ip=xilinx.com:ip:c_accum:12.0 --count=100  
 ```
 
 This will generate 100 random accumulator designs under the data/<ip_name>/ folder in the form of .dcp checkpoint files. It will then export all of the checkpoint files into .json files, and then will create the library in the library/<ip_name> folder. This will take approximately 2 hours to run.  
