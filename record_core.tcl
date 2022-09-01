@@ -220,7 +220,7 @@ proc record_flat_core {file_name} {
         puts $f "\"LEAF.$bool\":\{"
         puts $f "\"OUTPUTS\":\["
         set j 0
-        foreach P [get_pins -leaf -of_objects $N -filter "DIRECTION==OUT"] {
+        foreach P [get_pins -leaf -of_objects $N -filter "DIRECTION==OUT" -quiet] {
             set C [get_cells -of_objects $P]
             set ref_name [get_property REF_NAME $C]
             set loc [get_property LOC $C]
@@ -238,7 +238,7 @@ proc record_flat_core {file_name} {
 
         set j 0
         puts $f "\],\"INPUTS\":\["
-        foreach P [get_pins -leaf -of_objects $N -filter "DIRECTION==IN"] {
+        foreach P [get_pins -leaf -of_objects $N -filter "DIRECTION==IN" -quiet] {
             set C [get_cells -of_objects $P]
             set ref_name [get_property REF_NAME $C]
             set loc [get_property LOC $C]
