@@ -373,7 +373,7 @@ def run_tcl_script(tcl_file):
     global ip
     tf = tcl_file.replace(".dcp", "")
     tf = "data/" + ip + "/" + tf
-    os.system("vivado -mode batch -source record_core.tcl -tclarg " +
+    os.system("vivado -notrace -mode batch -source record_core.tcl -tclarg " +
               tf + " 0 -stack 2000")
 
 

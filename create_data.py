@@ -111,7 +111,7 @@ class DataGenerator():
         print("synth " + name + " $ip", file=self.launch_file)
 
     def run_tcl_script(self, tcl_file):
-        os.system("vivado -mode batch -source " + tcl_file + " -stack 2000")
+        os.system("vivado -notrace -mode batch -source " + tcl_file + " -stack 2000")
 
 
 if __name__ == "__main__":

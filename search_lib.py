@@ -20,9 +20,8 @@ import json
 import os
 import argparse
 import pickle
-import igraph
+from igraph import Graph
 import time
-from igraph import *
 from compare_v import *
 from multiprocessing import Pool
 
@@ -609,13 +608,13 @@ def print_all_cells(g,g_template,mapping):
 
 def import_dcp(file_name):
     dcp = file_name.replace(".dcp","")
-    os.system("vivado -mode batch -quiet -source record_core.tcl -tclarg " + dcp + " 1 -stack 2000")
+    os.system("vivado -mode batch -notrace -source record_core.tcl -tclarg " + dcp + " 1 -stack 2000")
 
 
 def main():
     global file_name, templates, used_list
     if ".dcp" in file_name:
-        import_dcp(file_name)
+        import_dcp(file_name) 
         file_name = file_name.replace(".dcp",".json")
 
     fj = open("library/" + ip + "/templates.json")
