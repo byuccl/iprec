@@ -19,32 +19,29 @@
 
 import json
 import os
+from pathlib import Path
 import argparse
-import igraph
-from igraph import *
+from igraph import Graph
 from multiprocessing import Pool
 from compare_v import compare_eqn
+import shutil
 
-parser = argparse.ArgumentParser()
-# Selects the target tile type
-parser.add_argument('--ip', default="xilinx.com:ip:c_accum:12.0")
+global ip
+ip = None
 
-args = parser.parse_args()
-print(args)
-
-ip = args.ip
-
-os.makedirs("library/", exist_ok=True)
-os.makedirs("library/" + ip + "/", exist_ok=True)
-os.makedirs("library/" + ip + "/templates/", exist_ok=True)
-os.makedirs("library/" + ip + "/graphs/", exist_ok=True)
-os.makedirs("data/" + ip + "/", exist_ok=True)
-
-# Creates the Library of Hierarchical Cell definitions for the randomized specimen designs for the IP
+ROOT_DIR = Path("/home/reilly/equiv/iprec")
 
 
 class LibraryGenerator():
+    """
+    Creates the Library of Hierarchical Cell definitions for the randomized
+    IP specimen designs.
+    """
+
     def __init__(self, ip):
+        self.data_dir = ROOT_DIR / "data" / ip
+        self.templ_dir = ROOT_DIR / "library" / ip / "templates"
+        self.graphs_dir = ROOT_DIR / "library" / ip / "graphs"
         self.ip = ip
         # Create all JSON files into a library
         self.create_submodules()
@@ -53,7 +50,6 @@ class LibraryGenerator():
 
     # Imports the json file into an iGraph
     def import_design(self, design):
-        #print("Creating Graph")
         g = Graph(directed=True)
         cells = design["CELLS"]
         g.add_vertices(len(list(cells.keys())))
@@ -71,7 +67,11 @@ class LibraryGenerator():
             else:
                 g.vs[i]["IS_PRIMITIVE"] = 0
                 g.vs[i]["color"] = "green"
-                g.vs[i]["ref"] = cells[x]["ORIG_REF_NAME"]
+
+                # Sometimes ORIG_REF_NAME is empty if REF_NAME = original name
+                tmp = cells[x]["ORIG_REF_NAME"]
+                g.vs[i]["ref"] = tmp if tmp else cells[x]["REF_NAME"]
+
                 g.vs[i]["CELL_PROPERTIES"] = cells[x]["CELL_PROPERTIES"]
             if "CELL_NAME" in cells[x]:
                 g.vs[i]["CELL_NAME"] = cells[x]["CELL_NAME"]
@@ -178,8 +178,8 @@ class LibraryGenerator():
         return user_properties
 
     # Compares two hierarchical cells, returns if they are equal or not
-    def compare_templates(self, g1, template_file_name):
-        g2 = igraph.Graph.Read_Pickle(template_file_name)
+    def compare_templates(self, g1, template_file):
+        g2 = Graph.Read_Pickle(str(template_file))
         v1_top = g1.vs[0]
         v2_top = g2.vs[0]
         if len(g1.vs) == len(g2.vs):
@@ -215,9 +215,8 @@ class LibraryGenerator():
         else:
             return 0
         self.update_user_properties(g2, g1["user_properties"])
-        g2.write_pickle(fname=template_file_name)
-        self.print_graph(template_file_name.replace(
-            "library/" + self.ip + "/templates/", "").replace(".pkl", ""), g2)
+        g2.write_pickle(fname=str(template_file))
+        self.print_graph(template_file.parent.name, template_file.name.replace(".pkl", ""), g2)
         return 1
 
     # Gets the spanning tree of the hierarchical cell (with or without non-primitive instances)
@@ -245,8 +244,7 @@ class LibraryGenerator():
     # Creates the final hierarchical cell definition from the hierarchical iGraph
     def create_hier_cell(self, ref_name, g, user_properties):
 
-        version_count = len(os.listdir(
-            "library/" + self.ip + "/templates/" + ref_name + "/"))
+        version_count = len(os.listdir(self.templ_dir / ref_name))
         print("NEW HIER CELL:", ref_name + "/" + str(version_count))
         cell = {}
         #cell["cells"] = g.vs["ref"]
@@ -254,11 +252,10 @@ class LibraryGenerator():
         g["span"] = self.get_spanning_trees(g.copy(), 0)
         g["primitive_count"] = len(g.vs.select(color="orange"))
         g["user_properties"] = user_properties
-        self.print_graph(ref_name + "/"+str(version_count), g)
+        self.print_graph(ref_name, version_count, g)
         #cell_dict[ref_name + "/" + str(version_count)] = cell
-        file_name = "library/" + self.ip + "/templates/" + \
-            ref_name + "/" + str(version_count) + ".pkl"
-        g.write_pickle(fname=file_name)
+        file_name = self.templ_dir / ref_name / f"{version_count}.pkl"
+        g.write_pickle(fname=str(file_name))
         return file_name
 
     # updates all properties for all cells within the hierarchical cell
@@ -276,10 +273,8 @@ class LibraryGenerator():
             user_properties = self.get_user_properties(g)
             g_sub["user_properties"] = user_properties
             if v["ref"] not in templates:
-                os.makedirs("library/" + self.ip + "/templates/" +
-                            v["ref"]+"/", exist_ok=True)
-                os.makedirs("library/" + self.ip + "/graphs/" +
-                            v["ref"]+"/", exist_ok=True)
+                (self.templ_dir / v["ref"]).mkdir(exist_ok=True)
+                (self.graphs_dir /v ["ref"]).mkdir(exist_ok=True)
                 # Returns the pickle file name of the template created
                 templates[v["ref"]] = [self.create_hier_cell(
                     v["ref"], g_sub, user_properties)]
@@ -287,74 +282,74 @@ class LibraryGenerator():
                 match = 0
                 for x in templates[v["ref"]]:
                     if self.compare_templates(g_sub, x):
-                        print("MATCHED:", v["ref"], x)
+                        print("MATCHED:", v["ref"], x.name)
                         match = 1
                         break
                 if match == 0:
                     has_new_data = 1
-                    templates[v["ref"]
-                              ] += [self.create_hier_cell(v["ref"], g_sub, user_properties)]
+                    templates[v["ref"]].append(self.create_hier_cell(v["ref"], g_sub, user_properties))
         return has_new_data
 
     # Creates all hierarchical cell definitions from all designs in the randomized specimen data
     def create_submodules(self):
-        cell_graphs = os.listdir("data/" + self.ip + "/")
-        cell_graphs[:] = [
-            x for x in cell_graphs if ".json" in x and "properties" not in x]
+        cell_graphs = [x.name for x in self.data_dir.iterdir() if ".json" in x.name and "properties" not in x.name]
         templates = {}
-        for x in os.listdir("library/" + self.ip + "/templates/"):
-            print("X:", x)
-            templates[x] = []
-            for y in os.listdir("library/" + self.ip + "/templates/" + x + "/"):
-                templates[x] += ["library/" + self.ip +
-                                 "/templates/" + x + "/" + y]
+        for x in self.templ_dir.iterdir():
+            print("X:", x.name)
+            templates[x.name] = []
+            if x.is_dir():
+                for y in x.iterdir():
+                    templates[x.name].append(y)
         for c in sorted(cell_graphs):
-            fj = open("data/" + self.ip + "/" + c)
-            try:
-                design = json.load(fj)
-                fj.close()
-                g = self.import_design(design)
-                self.create_templates(g, templates)
-            except:
-                print("DESIGN FAILED:", c)
-                continue
+            fj = open(self.data_dir / c, "r")
+            # try:
+            design = json.load(fj)
+            fj.close()
+            g = self.import_design(design)
+            self.create_templates(g, templates)
+            # except:
+            #     print("DESIGN FAILED:", c)
+            #     continue
 
     # Parses library folder and creates dictionary structure of all templates
     def init_templates(self):
         templates = {}
         used_list = {}
-        for x in os.listdir("library/" + self.ip + "/templates/"):
-            templates[x] = {}
-            for y in os.listdir("library/" + self.ip + "/templates/" + x + "/"):
-                templates[x][y] = {}
-                templates[x][y]["file"] = "library/" + \
-                    self.ip + "/templates/" + x + "/" + y
-                g_template = igraph.Graph.Read_Pickle(templates[x][y]["file"])
-                for t in g_template.vs.select(IS_PRIMITIVE=0, id_ne=0):
-                    if t["ref"] not in used_list:
-                        used_list[t["ref"]] = [x]
-                    else:
-                        used_list[t["ref"]] += [x]
-                span_dict = []
-                for span in g_template["primitive_span"]:
-                    tmp_dict = {}
-                    tmp_dict["indices"] = span
-                    tmp_dict["size"] = len(span)
-                    tmp_dict["matches"] = []
-                    span_dict.append(tmp_dict)
-                templates[x][y]["span"] = span_dict
-                templates[x][y]["primitive_count"] = g_template["primitive_count"]
+        for cell in self.templ_dir.iterdir():
+            if cell.is_dir():
+                templates[cell.name] = {}
+                for y in cell.iterdir():
+                    x = cell.name
+                    y = y.name
+                    templates[x][y] = {}
+                    templates[x][y]["file"] = str(self.templ_dir / x / y)
+                    g_template = Graph.Read_Pickle(templates[x][y]["file"])
+                    for t in g_template.vs.select(IS_PRIMITIVE=0, id_ne=0):
+                        if t["ref"] not in used_list:
+                            used_list[t["ref"]] = [x]
+                        else:
+                            used_list[t["ref"]] += [x]
+                    span_dict = []
+                    for span in g_template["primitive_span"]:
+                        tmp_dict = {}
+                        tmp_dict["indices"] = span
+                        tmp_dict["size"] = len(span)
+                        tmp_dict["matches"] = []
+                        span_dict.append(tmp_dict)
+                    templates[x][y]["span"] = span_dict
+                    templates[x][y]["primitive_count"] = g_template["primitive_count"]
         for x in used_list:
             used_list[x] = list(set(used_list[x]))
-        fj = open("library/" + self.ip + "/templates.json", 'w')
+        output = ROOT_DIR / "library" / self.ip / "templates.json"
+        fj = open(output, 'w')
         tmp = {"templates": templates, "used": used_list}
         template_json = json.dumps(tmp, indent=2, sort_keys=True)
         print(template_json, file=fj)
         fj.close()
 
     # Prints the graph into a human-readable format
-    def print_graph(self, name, graph_obj):
-        f = open("library/" + self.ip + "/graphs/" + name + ".txt", "w")
+    def print_graph(self, cell, version, graph_obj):
+        f = open(self.graphs_dir / cell / f"{version}.txt", "w")
         #print("Printing Graph as text")
         print("GRAPH TOP:", file=f)
         for p in graph_obj.attributes():
@@ -372,20 +367,18 @@ class LibraryGenerator():
             print("\t", e.source, "->", e.target, file=f)
         f.close()
 
-# Runs the export design from a .dcp of
-
 
 def run_tcl_script(tcl_file):
+    """Runs the export design from a .dcp of"""
     global ip
     tf = tcl_file.replace(".dcp", "")
     tf = "data/" + ip + "/" + tf
     os.system("vivado -mode batch -source record_core.tcl -tclarg " +
               tf + " 0 -stack 2000")
 
-# Runs the export design into a json for all specimen designs in parallel
-
 
 def export_designs():
+    """Exports all specimen designs into jsons in parallel"""
     global ip
     fileList = os.listdir("data/" + ip + "/")
     fileList[:] = [x for x in fileList if ".dcp" in x]
@@ -393,11 +386,30 @@ def export_designs():
     pool.map(run_tcl_script, fileList)
 
 
-def main():
-    global ip
-    # Export .dcp files into JSON
-    export_designs()
-    libgen = LibraryGenerator(ip)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    # Selects the target tile type
+    parser.add_argument('--ip', default="xilinx.com:ip:c_accum:12.0",
+                        help="Name of Xilinx IP or single dcp")
 
+    args = parser.parse_args()
 
-main()
+    static = args.ip.endswith(".dcp")
+    ip = args.ip.split('/')[-1].replace(".dcp", "")
+    file = Path(args.ip)
+    
+    root = ROOT_DIR / "library" / ip
+    (root / "templates").mkdir(parents=True, exist_ok=True)
+    (root / "graphs").mkdir(parents=True, exist_ok=True)
+    data = ROOT_DIR / "data" / ip
+    data.mkdir(parents=True, exist_ok=True)
+    file = shutil.copy(file, data)
+
+    if static:
+        # os.system("vivado -mode batch -source record_core.tcl -tclarg "
+        #            + str(file).replace(".dcp", "")  + " 0 -stack 2000")
+        libgen = LibraryGenerator(ip)
+    else:
+        # Export .dcp files into JSON
+        export_designs()
+        libgen = LibraryGenerator(ip)

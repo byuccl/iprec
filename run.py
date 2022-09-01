@@ -27,23 +27,25 @@ import argparse
 # IP Search:
 # 1. Launches the IP search script that searchs for the IP within the given design (.dcp file)
 
-parser = argparse.ArgumentParser()
-# Selects the target IP
-parser.add_argument('--ip', default="xilinx.com:ip:c_accum:12.0")
-# Number of random IP
-parser.add_argument('--count', default=100)
-# Selects the FPGA architecture part
-parser.add_argument('--part', default="xc7a100ticsg324-1L")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    # Selects the target IP
+    parser.add_argument('--ip', default="xilinx.com:ip:c_accum:12.0",
+                        help="Xilinx IP or dcp of ip to scan for")
+    # Number of random IP
+    parser.add_argument('--count', default=100)
+    # Selects the FPGA architecture part
+    parser.add_argument('--part', default="xc7a100ticsg324-1L")
 
-# Design to Parse
-parser.add_argument('--design', default="NONE")
+    # Design to Parse
+    parser.add_argument('--design', default="NONE", help="design to scan")
 
-args = parser.parse_args()
-print(args)
+    args = parser.parse_args()
+    print(args)
 
-if args.design == "NONE":
-    os.system("python create_data.py --ip=" + args.ip +
-              " --random_count=" + str(args.count) + " --part="+args.part)
-    os.system("python create_lib.py --ip=" + args.ip)
-else:
-    os.system("python search_lib.py "+args.design+" --ip=" + args.ip)
+    if args.design == "NONE":
+        os.system("python create_data.py --ip=" + args.ip +
+                  " --random_count=" + str(args.count) + " --part="+args.part)
+        os.system("python create_lib.py --ip=" + args.ip)
+    else:
+        os.system("python search_lib.py "+args.design+" --ip=" + args.ip)

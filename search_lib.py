@@ -187,7 +187,7 @@ def save_checkpoint(g,g_template,mapping):
     for i in range(100):
         file_name = "checkpoints/checkpoint." + str(i) + ".mapping.pkl"
         if os.path.exists(file_name) == False:
-            print("\t\tSAVING CHECKPOINT:",i,len(mapping))
+            # print("\t\tSAVING CHECKPOINT:",i,len(mapping))
             with open(file_name, 'wb') as handle:
                 pickle.dump(mapping, handle, protocol=pickle.HIGHEST_PROTOCOL)
             g_template.write_pickle(fname=file_name.replace(".mapping",".graph"))
@@ -292,7 +292,7 @@ def descend_parallel(ver):
 
 def descend(g,g_template,pass_mapping,limit_vertices):
     global templates, descend_failed_dict,ref,g_temp,v_par_id,ret_graph,g_par,return_mapping
-    print("\tDESCEND")
+    # print("\tDESCEND")
     pass_graph = ""
     return_mapping = pass_mapping
     descend_pass_flag = 1
@@ -353,7 +353,7 @@ def descend(g,g_template,pass_mapping,limit_vertices):
 
 def ascend(g,g_template,pass_mapping):
     global templates
-    print("\tASCEND")
+    # print("\tASCEND")
     pass_graph = ""
     return_mapping = pass_mapping
     
@@ -391,7 +391,7 @@ def ascend(g,g_template,pass_mapping):
 
 def recurse_descend(descend_decision_dec,g,g_template,mapping,depth):
     global templates, v_par_id,ref,ret_graph,g_par,g_temp
-    print("\tRECURSE DESCEND")
+    # print("\tRECURSE DESCEND")
     ret_graph = 1
     ref = descend_decision_dec[1]
     v_par_id = descend_decision_dec[0]
@@ -402,7 +402,7 @@ def recurse_descend(descend_decision_dec,g,g_template,mapping,depth):
 
 def recurse_ascend(ascend_decision_list,g,g_template,mapping,depth):
     global templates
-    print("\tRECURSE ASCEND")
+    # print("\tRECURSE ASCEND")
     if len(ascend_decision_list ) == 0:
         return g_template, mapping, 0
 
@@ -458,7 +458,7 @@ def run_replace(g,g_template,mapping,depth):
     biggest_graph = g_template
     biggest_map = mapping
     recurse_pass_flag = 0
-    print("\n#### Starting Ascend/descend Function ####\n DEPTH:",depth)
+    # print("\n#### Starting Ascend/descend Function ####\n DEPTH:",depth)
     while(1):
         descend_decision_dec,ascend_decision_dec = None, []
         dec_list = []
@@ -474,9 +474,9 @@ def run_replace(g,g_template,mapping,depth):
             biggest_map = mapping
             biggest_graph = g_template
         # Recursively Try all Descending decisions
-        print("DEC LIST:",dec_list)
+        # print("DEC LIST:",dec_list)
         if len(dec_list) != 0:
-            print("DESCENDING RECURSIVE:",dec_list)
+            # print("DESCENDING RECURSIVE:",dec_list)
             for x in dec_list[2]:
                 ref = dec_list[1]
                 v_par_id = dec_list[0]
@@ -499,7 +499,7 @@ def run_replace(g,g_template,mapping,depth):
 
 def find_template(g,g_template,verbose,template,ver):
     global prim_count, mapped_list, templates
-    print("SEARCHING:",template,ver)
+    # print("SEARCHING:",template,ver)
     template_name = g_template.vs[0]["ref"]
     biggest_map, biggest_graph = [],None
     # have span max be on a sliding scale - based off of len(templates)
@@ -520,7 +520,7 @@ def find_template(g,g_template,verbose,template,ver):
             mapping = compare_vertex(mapping,g,v,g_template,v2,0,verbose)
 
             if mapping != 0 and len(mapping) > 1:
-                print("####### STARTING NEW FIND TEMPLATE: #######")
+                # print("####### STARTING NEW FIND TEMPLATE: #######")
                 if greedy_method == 1:
                     g_tmp_template,tmp_mapping = run_replace_greedy(g,g_template,mapping,0)
                 else:
@@ -609,7 +609,7 @@ def print_all_cells(g,g_template,mapping):
 
 def import_dcp(file_name):
     dcp = file_name.replace(".dcp","")
-    os.system("vivado -mode batch -source record_core.tcl -tclarg " + dcp + " 1 -stack 2000")
+    os.system("vivado -mode batch -quiet -source record_core.tcl -tclarg " + dcp + " 1 -stack 2000")
 
 
 def main():
@@ -637,7 +637,7 @@ def main():
 
     # Either search, or start from a known checkpoint
     g_template, template_mapping = search(g)
-    #start_from_checkpoint(g,2705)
+    # start_from_checkpoint(g,99)
 
     if len(template_mapping)!=0:
         save_checkpoint(g,g_template,template_mapping)
