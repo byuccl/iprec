@@ -7,7 +7,7 @@ This project was sponsored by the Oﬃce of Naval Research, subcontract through 
 # Quick Start Guide  
 
 **Requirements:**   
-* Python 3.8.10
+* Python 3.10.4
 * Python packages:
 ```
 pip install igraph
