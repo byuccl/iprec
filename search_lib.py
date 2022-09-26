@@ -198,7 +198,7 @@ def open_checkpoint(i):
     if os.path.exists(file_name):
         with open(file_name, 'rb') as handle:
             mapping = pickle.load(handle)
-    g = igraph.Graph.Read_Pickle(file_name.replace(".mapping",".graph"))
+    g = Graph.Read_Pickle(file_name.replace(".mapping",".graph"))
     return g,mapping
 
 def print_json_map(g,g_template,mapping):
@@ -274,7 +274,7 @@ def print_map_cells(mapping,g,g_template):
 
 def descend_parallel(ver):
     global templates,ref,g_temp,v_par_id,ret_graph,g,g_par, return_mapping
-    g_hier = igraph.Graph.Read_Pickle(templates[ref][ver]["file"])
+    g_hier = Graph.Read_Pickle(templates[ref][ver]["file"])
     g_new = g_temp.copy()
     g_new,pass_flag, new_vertices = replace_hier_cell(g_new,g_hier,v_par_id,"descend")
     tmp_graph = g_new.copy()
@@ -364,7 +364,7 @@ def ascend(g,g_template,pass_mapping):
         for ref in used_list[root_node["ref"]]:
             possible_matches = []
             for ver in templates[ref]:
-                g_hier = igraph.Graph.Read_Pickle(templates[ref][ver]["file"])
+                g_hier = Graph.Read_Pickle(templates[ref][ver]["file"])
 
                 g_new = g_template.copy()
                 v_hier_top_s = g_hier.vs.select(ref=root_node["ref"])
@@ -410,7 +410,7 @@ def recurse_ascend(ascend_decision_list,g,g_template,mapping,depth):
         for decision in ascend_decision_list[x]:
             ref = x
             ver,v_id = decision
-            g_hier = igraph.Graph.Read_Pickle(templates[ref][ver]["file"])
+            g_hier = Graph.Read_Pickle(templates[ref][ver]["file"])
             g_new = g_template.copy()
             g_new,pass_flag,new_vertices = replace_hier_cell(g_new,g_hier,v_id,"ascend")
             tmp_mapping = update_map(g,g_new,dict(mapping),new_vertices,0)
@@ -540,7 +540,7 @@ def search(g):
         count += 1
         for x in templates:
             for y in templates[x]:
-                g_template = igraph.Graph.Read_Pickle(templates[x][y]["file"])
+                g_template = Graph.Read_Pickle(templates[x][y]["file"])
                 verbose = 0
                 g_template_tmp,tmp_template_mapping = find_template(g,g_template,verbose,x,y)
                 if tmp_template_mapping != 0 and len(tmp_template_mapping) > len(biggest_map):
@@ -632,7 +632,7 @@ def main():
         g = label_const_sources(g)
         g.write_pickle(fname=file_name.replace(".json",".pkl"))
     else:
-        g = igraph.Graph.Read_Pickle(file_name.replace(".json",".pkl"))
+        g = Graph.Read_Pickle(file_name.replace(".json",".pkl"))
 
     # Either search, or start from a known checkpoint
     g_template, template_mapping = search(g)
