@@ -22,7 +22,7 @@ source /tools/Xilinx/Vivado/2020.2/settings64.sh
 1. Run the library creation Accumulator IP, targeting the artix7 using the default part xc7a100ticsg324-1L  
 
 ```
-python run.py --ip=xilinx.com:ip:c_accum:12.0 --count=100  
+python src/run.py xilinx.com:ip:c_accum:12.0 --count=100  
 ```
 
 This will generate 100 random accumulator designs under the data/<ip_name>/ folder in the form of .dcp checkpoint files. It will then export all of the checkpoint files into .json files, and then will create the library in the library/<ip_name> folder. This will take approximately 2 hours to run.  
@@ -30,20 +30,26 @@ This will generate 100 random accumulator designs under the data/<ip_name>/ fold
 2. Search an input design (.dcp file) for the accumulator IP.  
 
 ```
-python3 run.py --ip=xilinx.com:ip:c_accum:12.0 --design="<design_name>.dcp"  
+python src/run.py xilinx.com:ip:c_accum:12.0 --design="<design_name>.dcp"  
 ```
 
 This will generate a design.json file which is the final output of the best-matched accumulator IP definition within the input design. It will also export the input design as a flat .json file that will be imported into an iGraph format.  
 
 ## Run Arguments  
-<pre>  
-parser.add_argument('--ip',default="xilinx.com:ip:c_accum:12.0")    # Selects the target IP  
-parser.add_argument('--count',default=100)                          # Number of random IP   
-parser.add_argument('--part',default="xc7a100ticsg324-1L")          # Selects the FPGA architecture part  
-parser.add_argument('--design',default="NONE")                      # Design to Parse  
-</pre>  
+``` 
+usage: run.py [-h] [--count COUNT] [--part PART] [--design DESIGN] IP
 
-When --design is set to NONE, then the library generation is run, otherwise the IP search is run.  
+positional arguments:
+  IP               Xilinx IP or DCP file of ip to scan for
+
+options:
+  -h, --help       Show this help message and exit
+  --count COUNT    Number of random IP
+  --part PART      Xilinx device part
+  --design DESIGN  Design to scan for ip  
+``` 
+
+When `--design` is not specified, then the library generation is run, otherwise the IP search is run.  
 
 
 ## File Structure    
