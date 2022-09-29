@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 
 # Copyright 2020-2022 IPRec Authors

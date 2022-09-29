@@ -18,9 +18,13 @@
     # There is also an option to keep hierarchy (record_core), or flatten all of the hierarchy (record_flat_core)
 
 # This function is used in create_data.py that will export the IP core design into a JSON file to be imported into iGraph
-proc record_core {file_name} {
+proc record_core {file_name {core ""}} {
     open_checkpoint "$file_name.dcp"
-    set f [open "$file_name.json" w]
+    if {$core eq ""} {
+        set f [open "$file_name.json" w]
+    } else {
+        set f [open "$core.json" w]
+    }
     set i 0
     puts $f "\{\"NETS\":\{"
     # Record all the of Nets properties, which needs:
@@ -150,10 +154,14 @@ proc record_core {file_name} {
 
 # Records a benchmark design into a flat JSON file structure used for importing it into an iGraph
     # This is used in the search_lib.py script to export the input design into iGraph to be searched
-proc record_flat_core {file_name} {
+proc record_flat_core {file_name {core_name ""}} {
     puts "FLATTENING DCP"
     open_checkpoint "$file_name.dcp"
-    set f [open "$file_name.json" w]
+    if {$core_name eq ""} {
+        set f [open "$file_name.json" w]
+    } else {
+        set f [open "$core_name.json" w]
+    }
     set i 0
     set count 0
     puts $f "\{\"CELLS\":\{"
@@ -271,8 +279,8 @@ proc record_flat_core {file_name} {
 }
 
 # Command line arguments to flatten or keep hierarchy of the dcp
-if {[lindex $argv 1] == 0} {
-    record_core [lindex $argv 0] 
+if {[lindex $argv 2] == 0} {
+    record_core [lindex $argv 0]  [lindex $argv 1] 
 } else {
     record_flat_core [lindex $argv 0] 
 }

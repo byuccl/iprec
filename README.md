@@ -82,16 +82,20 @@ After completing the Quick Start Guide, the following file structure will be gen
  ┃ ┃ ┃ ┃ ┣ 📜0.pkl  
  ┃ ┃ ┃ ┃ ┣ 📜1.pkl  
  ┃ ┃ ┗ 📜templates.json  
+ ┣ 📂src
+ ┃ ┣ 📜compare_v.py  
+ ┃ ┣ 📜core_fuzzer.tcl  
+ ┃ ┣ 📜create_data.py  
+ ┃ ┣ 📜create_lib.py  
+ ┃ ┣ 📜design.json  
+ ┃ ┣ 📜record_core.tcl  
+ ┃ ┣ 📜run.py  
+ ┃ ┗ 📜search_lib.py  
+ ┣ 📜LICENSE
+ ┣ 📜IPRec Flow.png
  ┣ 📜.gitignore  
- ┣ 📜README.md  
- ┣ 📜compare_v.py  
- ┣ 📜core_fuzzer.tcl  
- ┣ 📜create_data.py  
- ┣ 📜create_lib.py  
- ┣ 📜design.json  
- ┣ 📜record_core.tcl  
- ┣ 📜run.py  
- ┗ 📜search_lib.py  
+ ┗ 📜README.md  
+ 
  
  
  Final output hierarchical definition after running run.py with a design is design.json. The library contains a folder for every IP. For each IP, a graphs and a templates folder exists. For every hierarchical cell found within the specimen a folder is created. Every version of the hierarchical cell will generate a textual represetation of the iGraph circuit in the graphs folder, and a pickle save of the template found in the templates folder. A final summary of all templates in the library for the given IP is found in templates.json. All specimen designs created will be saved in the data folder. A checkpoint (.dcp) file and a json textual representation of the design is saved for each specimen. Checkpoints are used in  the process of the search algorithm, and can be used to start the search algorithm at different points in the process.  

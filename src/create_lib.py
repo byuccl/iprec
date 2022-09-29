@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 
 # Copyright 2020-2022 IPRec Authors
@@ -32,7 +31,7 @@ ip = None
 ROOT_DIR = Path("/home/reilly/equiv/iprec")
 
 
-class LibraryGenerator():
+class LibraryGenerator:
     """
     Creates the Library of Hierarchical Cell definitions for the randomized
     IP specimen designs.
@@ -82,8 +81,14 @@ class LibraryGenerator():
 
         # Create all edges
         nets = design["NETS"]
-        edge_data = {"conns": [], "names": [], "parent": [],
-                     "in_pin": [], "out_pin": [], "signal": []}
+        edge_data = {
+            "conns": [],
+            "names": [],
+            "parent": [],
+            "in_pin": [],
+            "out_pin": [],
+            "signal": [],
+        }
         for x in nets:
             parent = nets[x]["PARENT"]
             driver = nets[x]["DRIVER"]
@@ -112,8 +117,7 @@ class LibraryGenerator():
                                     edge_type = driver_type
                                 else:
                                     edge_type = "port"
-                                edge_data["conns"].append(
-                                    (driver_idx, pin_idx))
+                                edge_data["conns"].append((driver_idx, pin_idx))
                                 edge_data["names"].append(x.split("/")[-1])
                                 edge_data["parent"].append(parent)
                                 edge_data["in_pin"].append(pin[1])
@@ -153,14 +157,11 @@ class LibraryGenerator():
         i = 0
         for e in graph_obj.es.select(parent=parent):
             if e.source not in v_dict:
-                print("MISSING:", e.source, e.target,
-                      graph_obj.vs[e.source]["name"])
+                print("MISSING:", e.source, e.target, graph_obj.vs[e.source]["name"])
             elif e.target not in v_dict:
-                print("MISSING:", e.source, e.target,
-                      graph_obj.vs[e.target]["name"])
+                print("MISSING:", e.source, e.target, graph_obj.vs[e.target]["name"])
             else:
-                g.add_edges(
-                    [(v_dict[e.source], v_dict[e.target])], e.attributes())
+                g.add_edges([(v_dict[e.source], v_dict[e.target])], e.attributes())
                 g.es[i]["parent"] = g.es[i]["parent"].split("/")[-1]
             i += 1
         for v in g.vs:
@@ -194,7 +195,13 @@ class LibraryGenerator():
                         for P in v1["BEL_PROPERTIES"]:
                             if P in v2["BEL_PROPERTIES"]:
                                 if P == "CONFIG.EQN":
-                                    if compare_eqn(v1["BEL_PROPERTIES"][P], v2["BEL_PROPERTIES"][P]) == 0:
+                                    if (
+                                        compare_eqn(
+                                            v1["BEL_PROPERTIES"][P],
+                                            v2["BEL_PROPERTIES"][P],
+                                        )
+                                        == 0
+                                    ):
                                         return 0
                                 elif P == "CONFIG.LATCH_OR_FF":
                                     continue
@@ -208,15 +215,21 @@ class LibraryGenerator():
         es2_intra = g2.es
         if len(es1_intra) == len(es2_intra):
             for e1 in es1_intra:
-                e2 = g2.es.select(_target=e1.target, _source=e1.source,
-                                  in_pin=e1["in_pin"], out_pin=e1["out_pin"])
+                e2 = g2.es.select(
+                    _target=e1.target,
+                    _source=e1.source,
+                    in_pin=e1["in_pin"],
+                    out_pin=e1["out_pin"],
+                )
                 if len(e2) != 1:
                     return 0
         else:
             return 0
         self.update_user_properties(g2, g1["user_properties"])
         g2.write_pickle(fname=str(template_file))
-        self.print_graph(template_file.parent.name, template_file.name.replace(".pkl", ""), g2)
+        self.print_graph(
+            template_file.parent.name, template_file.name.replace(".pkl", ""), g2
+        )
         return 1
 
     # Gets the spanning tree of the hierarchical cell (with or without non-primitive instances)
@@ -247,13 +260,13 @@ class LibraryGenerator():
         version_count = len(os.listdir(self.templ_dir / ref_name))
         print("NEW HIER CELL:", ref_name + "/" + str(version_count))
         cell = {}
-        #cell["cells"] = g.vs["ref"]
+        # cell["cells"] = g.vs["ref"]
         g["primitive_span"] = self.get_spanning_trees(g.copy(), 1)
         g["span"] = self.get_spanning_trees(g.copy(), 0)
         g["primitive_count"] = len(g.vs.select(color="orange"))
         g["user_properties"] = user_properties
         self.print_graph(ref_name, version_count, g)
-        #cell_dict[ref_name + "/" + str(version_count)] = cell
+        # cell_dict[ref_name + "/" + str(version_count)] = cell
         file_name = self.templ_dir / ref_name / f"{version_count}.pkl"
         g.write_pickle(fname=str(file_name))
         return file_name
@@ -274,10 +287,11 @@ class LibraryGenerator():
             g_sub["user_properties"] = user_properties
             if v["ref"] not in templates:
                 (self.templ_dir / v["ref"]).mkdir(exist_ok=True)
-                (self.graphs_dir /v ["ref"]).mkdir(exist_ok=True)
+                (self.graphs_dir / v["ref"]).mkdir(exist_ok=True)
                 # Returns the pickle file name of the template created
-                templates[v["ref"]] = [self.create_hier_cell(
-                    v["ref"], g_sub, user_properties)]
+                templates[v["ref"]] = [
+                    self.create_hier_cell(v["ref"], g_sub, user_properties)
+                ]
             else:
                 match = 0
                 for x in templates[v["ref"]]:
@@ -287,12 +301,18 @@ class LibraryGenerator():
                         break
                 if match == 0:
                     has_new_data = 1
-                    templates[v["ref"]].append(self.create_hier_cell(v["ref"], g_sub, user_properties))
+                    templates[v["ref"]].append(
+                        self.create_hier_cell(v["ref"], g_sub, user_properties)
+                    )
         return has_new_data
 
     # Creates all hierarchical cell definitions from all designs in the randomized specimen data
     def create_submodules(self):
-        cell_graphs = [x.name for x in self.data_dir.iterdir() if ".json" in x.name and "properties" not in x.name]
+        cell_graphs = [
+            x.name
+            for x in self.data_dir.iterdir()
+            if ".json" in x.name and "properties" not in x.name
+        ]
         templates = {}
         for x in self.templ_dir.iterdir():
             print("X:", x.name)
@@ -301,6 +321,7 @@ class LibraryGenerator():
                 for y in x.iterdir():
                     templates[x.name].append(y)
         for c in sorted(cell_graphs):
+            print(self.data_dir / c)
             fj = open(self.data_dir / c, "r")
             # try:
             design = json.load(fj)
@@ -341,7 +362,7 @@ class LibraryGenerator():
         for x in used_list:
             used_list[x] = list(set(used_list[x]))
         output = ROOT_DIR / "library" / self.ip / "templates.json"
-        fj = open(output, 'w')
+        fj = open(output, "w")
         tmp = {"templates": templates, "used": used_list}
         template_json = json.dumps(tmp, indent=2, sort_keys=True)
         print(template_json, file=fj)
@@ -350,7 +371,7 @@ class LibraryGenerator():
     # Prints the graph into a human-readable format
     def print_graph(self, cell, version, graph_obj):
         f = open(self.graphs_dir / cell / f"{version}.txt", "w")
-        #print("Printing Graph as text")
+        # print("Printing Graph as text")
         print("GRAPH TOP:", file=f)
         for p in graph_obj.attributes():
             print("\t", p, ":", graph_obj[p], file=f)
@@ -373,8 +394,11 @@ def run_tcl_script(tcl_file):
     global ip
     tf = tcl_file.replace(".dcp", "")
     tf = "data/" + ip + "/" + tf
-    os.system("vivado -notrace -mode batch -source record_core.tcl -tclarg " +
-              tf + " 0 -stack 2000")
+    os.system(
+        "vivado -notrace -mode batch -source record_core.tcl -tclarg "
+        + tf
+        + " 0 -stack 2000"
+    )
 
 
 def export_designs():
@@ -386,18 +410,23 @@ def export_designs():
     pool.map(run_tcl_script, fileList)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     # Selects the target tile type
-    parser.add_argument('--ip', default="xilinx.com:ip:c_accum:12.0",
-                        help="Name of Xilinx IP or single dcp")
+    parser.add_argument(
+        "--ip",
+        default="xilinx.com:ip:c_accum:12.0",
+        help="Name of Xilinx IP or single dcp",
+    )
 
     args = parser.parse_args()
+    static = ip_in.endswith(".dcp")
+    if not ip_name:
+        ip = ip_in.split("/")[-1].replace(".dcp", "")
+    else:
+        ip = ip_name
+    file = Path(ip_in)
 
-    static = args.ip.endswith(".dcp")
-    ip = args.ip.split('/')[-1].replace(".dcp", "")
-    file = Path(args.ip)
-    
     root = ROOT_DIR / "library" / ip
     (root / "templates").mkdir(parents=True, exist_ok=True)
     (root / "graphs").mkdir(parents=True, exist_ok=True)
@@ -406,10 +435,16 @@ if __name__ == "__main__":
     file = shutil.copy(file, data)
 
     if static:
-        # os.system("vivado -mode batch -source record_core.tcl -tclarg "
-        #            + str(file).replace(".dcp", "")  + " 0 -stack 2000")
+        # os.system(
+        #     f"vivado nolog -nojournal -mode batch -source record_core.tcl -tclarg "
+        #     + f"{str(file).replace('.dcp', '')} {str(data / ip)} 0 -stack 2000"
+        # )
         libgen = LibraryGenerator(ip)
     else:
         # Export .dcp files into JSON
         export_designs()
         libgen = LibraryGenerator(ip)
+
+
+if __name__ == "__main__":
+    main()
