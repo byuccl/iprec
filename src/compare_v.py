@@ -152,23 +152,23 @@ def compare_eqn(eq1, eq2):
     for pin in pin_name_list:
         eq1_fun = eq1_fun.replace(pin, "PIN")
         eq2_fun = eq2_fun.replace(pin, "PIN")
-    if eq1_fun == eq2_fun:
-        for pin in pin_name_list:
-            eq1_pin_dict[pin] = [m.start() for m in re.finditer(pin, eq1)]
-            eq2_pin_dict[pin] = [m.start() for m in re.finditer(pin, eq2)]
-        for pin in eq1_pin_dict:
-            found = 0
-            for pin2 in eq2_pin_dict:
-                if eq1_pin_dict[pin] == eq2_pin_dict[pin2]:
-                    found = 1
-                    eq2_pin_dict.pop(pin2, None)
-                    break
-            if found == 0:
-                return 0
-        return 1
-    else:
+    if eq1_fun != eq2_fun:
         return 0
 
+    for pin in pin_name_list:
+        eq1_pin_dict[pin] = [m.start() for m in re.finditer(pin, eq1)]
+        eq2_pin_dict[pin] = [m.start() for m in re.finditer(pin, eq2)]
+    for pin in eq1_pin_dict:
+        found = 0
+        for pin2 in eq2_pin_dict:
+            if eq1_pin_dict[pin] == eq2_pin_dict[pin2]:
+                found = 1
+                eq2_pin_dict.pop(pin2, None)
+                break
+        if found == 0:
+            return 0
+    return 1
+    
 
 def compare_ref(v1, v2):
     if v1["ref"] != v2["ref"]:
@@ -496,27 +496,26 @@ def save_pkl_obj(file_name, pkl_obj):
         pickle.dump(pkl_obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def visualize_graph(name, graph_obj):
-    name = name.replace("/", ".")
-    print("printing", name)
-    print("Printing Graph")
-    fj = open("library/" + ip + "/graphs/graph" + name + ".txt", "w")
-    # print(summary(graph_obj),file=fj)
-    print_graph(graph_obj, fj)
-    fj.close()
-    return
+# def visualize_graph(name, graph_obj):
+#     name = name.replace("/", ".")
+#     print("printing", name)
+#     print("Printing Graph")
+#     fj = open("library/" + ip + "/graphs/graph" + name + ".txt", "w")
+#     print_graph(graph_obj, fj)
+#     fj.close()
+#     return
 
-    visual_style = {}
-    out_name = "library/" + ip + "/graphs/graph_" + name + ".png"
-    visual_style["bbox"] = (1000, 1000)
-    visual_style["margin"] = 5
-    visual_style["vertex_size"] = 75
-    visual_style["vertex_label_size"] = 15
-    visual_style["edge_curved"] = False
-    visual_style["hovermode"] = "closest"
-    my_layout = graph_obj.layout_sugiyama()
-    visual_style["layout"] = my_layout
-    plot(graph_obj, out_name, **visual_style)
+#     visual_style = {}
+#     out_name = "library/" + ip + "/graphs/graph_" + name + ".png"
+#     visual_style["bbox"] = (1000, 1000)
+#     visual_style["margin"] = 5
+#     visual_style["vertex_size"] = 75
+#     visual_style["vertex_label_size"] = 15
+#     visual_style["edge_curved"] = False
+#     visual_style["hovermode"] = "closest"
+#     my_layout = graph_obj.layout_sugiyama()
+#     visual_style["layout"] = my_layout
+#     plot(graph_obj, out_name, **visual_style)
 
 
 def print_graph(graph_obj, f):

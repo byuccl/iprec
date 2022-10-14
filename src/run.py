@@ -18,6 +18,12 @@
 
 import os
 import argparse
+from pathlib import Path
+
+from create_data import DataGenerator
+from create_lib import LibraryGenerator
+
+ROOT_PATH = Path(__file__).resolve().parent.parent
 
 # This script combines each step in the flow for IPRec, and creates a select between "creating the library for the first time", and "searching for the IP in a design"
 # IP Characterization:
@@ -26,25 +32,27 @@ import argparse
 # IP Search:
 # 1. Launches the IP search script that searchs for the IP within the given design (.dcp file)
 
-if __name__ == "__main__":
+def run_flow(IP, count=100, part="xc7a100ticsg324-1L", design=None, force=False):
+    if (design is None) or (not (ROOT_PATH / "library" / IP).exists()) or force:
+        if not IP.endswith(".dcp"):
+            DataGenerator(ip=IP, part=part, random_count=count)
+        LibraryGenerator(ip=IP)
+    if design:
+        os.system("python search_lib.py "+design+" --ip=" + IP)
+
+
+def run():
     parser = argparse.ArgumentParser()
     # Selects the target IP
-    parser.add_argument('--ip', default="xilinx.com:ip:c_accum:12.0",
-                        help="Xilinx IP or dcp of ip to scan for")
-    # Number of random IP
-    parser.add_argument('--count', default=100)
-    # Selects the FPGA architecture part
-    parser.add_argument('--part', default="xc7a100ticsg324-1L")
-
-    # Design to Parse
-    parser.add_argument('--design', default="NONE", help="design to scan")
-
+    parser.add_argument('IP', help="Xilinx IP or DCP file of ip to scan for")
+    parser.add_argument('--count', default=100, help="Number of random IP", type=int)
+    parser.add_argument('--part', default="xc7a100ticsg324-1L", help="Xilinx device part")
+    parser.add_argument('--design', default=None, help="Design to scan for ip")
+    parser.add_argument('--force', '-f', default=False, action="store_true", help="Force regeneration of IP data/libraries")
     args = parser.parse_args()
-    print(args)
 
-    if args.design == "NONE":
-        os.system("python create_data.py --ip=" + args.ip +
-                  " --random_count=" + str(args.count) + " --part="+args.part)
-        os.system("python create_lib.py --ip=" + args.ip)
-    else:
-        os.system("python search_lib.py "+args.design+" --ip=" + args.ip)
+    run_flow(**args.__dict__)
+
+
+if __name__ == "__main__":
+   run()
