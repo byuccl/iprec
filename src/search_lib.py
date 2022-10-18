@@ -30,8 +30,10 @@ import pickle
 from subprocess import Popen, STDOUT, PIPE
 import sys
 
+from sympy import limit
+
 from compare_v import compare_vertex, import_design
-from config import VIVADO, CHECKPT_DIR
+from config import LIB_DIR, VIVADO, CHECKPT_DIR
 
 
 GREEDY = True
@@ -54,9 +56,7 @@ class IP_Search:
         checkpoint (int) the point to resume search.
         force_gen (bool) force regeneration of pickle file
         """
-        self.templates = {}
         self.mapped_list = []
-        self.used_list = {}
         self.descend_failed_dict = {}
 
         if design.suffix == ".dcp":
@@ -77,6 +77,11 @@ class IP_Search:
             g.write_pickle(fname=str(pickle_f))
         else:
             g = Graph.Read_Pickle(str(pickle_f))
+
+        with open(LIB_DIR / IP / "templates.json", "r") as f:
+            tmp = json.load(f)
+            self.templates = tmp["templates"]
+            self.used_list = tmp["used"]
 
         # Either search, or start from a known checkpoint
         if not checkpoint:
@@ -242,21 +247,15 @@ class IP_Search:
 
         return g, 1, new_vertices
 
-    # Gets all hier cells connected to the limit_vertices list
+    
     def get_spanning_hier_cells(self, g_template, mapping, limit_vertices):
-        mapped_id = []
-        if limit_vertices == None:
-            mapped_id = mapping.values()
-        else:
-            mapped_id = limit_vertices
+        """Gets all hier cells connected to the limit_vertices list"""
+        mapped_id = mapping.values() if limit_vertices is not None else limit_vertices
 
         max_v = len(g_template.vs)
-        mapped_id = list(x for x in mapped_id if x < max_v)
-        neighbor_vs = g_template.neighborhood(
-            vertices=mapped_id, order=1, mode="all", mindist=1
-        )
-        neighborhood = [item for sublist in neighbor_vs for item in sublist]
-        neighborhood = list(set(neighborhood))
+        mapped_id = [x for x in mapped_id if x < max_v]
+        neighbor_vs = g_template.neighborhood(vertices=mapped_id, order=1, mode="all", mindist=1)
+        neighborhood = {item for sublist in neighbor_vs for item in sublist}
         hier_vs_id = []
         for x in neighborhood:
             if g_template.vs["color"][x] == "green":
@@ -329,7 +328,6 @@ class IP_Search:
         return 0
 
     def descend(self, g, g_template, pass_mapping, limit_vertices):
-        pass_graph = ""
         return_mapping = pass_mapping
         descend_pass_flag = 1
         best_length = 0
@@ -531,16 +529,8 @@ class IP_Search:
             while 1:
                 # Descend as much as possible
                 original_length = len(g_template.vs)
-                (
-                    g_template,
-                    mapping,
-                    descend_decision_dec,
-                    descend_pass_flag,
-                    dec_list,
-                ) = self.descend(g, g_template, mapping, None)
-                g_template, mapping, ascend_decision_list = self.ascend(
-                    g, g_template, mapping
-                )
+                (g_template, mapping, descend_decision_dec, descend_pass_flag, dec_list) = self.descend(g, g_template, mapping, None)  #  noqua
+                g_template, mapping, ascend_decision_list = self.ascend(g, g_template, mapping)
                 if len(g_template.vs) == original_length:
                     break
             # Ascending and Descending has settled
@@ -580,26 +570,24 @@ class IP_Search:
                 return biggest_graph, biggest_map
         return None
 
-    def find_template(self, g, g_template, verbose, template, ver):
-        # print("SEARCHING:",template,ver)
-        template_name = g_template.vs[0]["ref"]
+    def find_template(self, g, g_template, template, version, span_in):
         biggest_map, biggest_graph = [], None
         # have span max be on a sliding scale - based off of len(templates)
-        for span in self.templates[template][ver]["span"]:
-
+        for span in span_in:
             if span["size"] <= 5:
-                has_complex_prim = 0
+                has_complex_prim = False
                 for x in span["indices"]:
                     if g_template.vs[x]["ref"] in ["DSP48E1"]:
-                        has_complex_prim = 1
-                if has_complex_prim == 0:
+                        has_complex_prim = True
+                        break
+                if has_complex_prim is False:
                     continue
             v2 = g_template.vs[span["indices"][0]]
-            print("\tNEW SPAN:", span["indices"], template, ver)
+            # print("\tNEW SPAN:", span["indices"], template, version)
             for v in g.vs.select(ref=v2["ref"]):
                 mapping = {}
                 mapping[v.index] = v2.index
-                mapping = compare_vertex(mapping, g, v, g_template, v2, 0, verbose)
+                mapping = compare_vertex(mapping, g, v, g_template, v2, 0)
 
                 if mapping != 0 and len(mapping) > 1:
                     # print("####### STARTING NEW FIND TEMPLATE: #######")
@@ -618,14 +606,14 @@ class IP_Search:
         return biggest_graph, biggest_map
 
     def search(self, g):
-        biggest_map, biggest_graph = [], None
+        biggest_map = []
+        biggest_graph = None
 
-        for x in self.templates:
-            for y in self.templates[x]:
-                g_template = Graph.Read_Pickle(self.templates[x][y]["file"])
-                verbose = 0
+        for k1, v1 in self.templates.items():
+            for k2, v2 in v1.items():
+                g_template = Graph.Read_Pickle(v2["file"])
                 g_template_tmp, tmp_template_mapping = self.find_template(
-                    g, g_template, verbose, x, y
+                    g, g_template, k1, k2, v2["span"]
                 )
                 if tmp_template_mapping != 0 and len(tmp_template_mapping) > len(
                     biggest_map

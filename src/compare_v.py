@@ -20,6 +20,8 @@ import random
 import re
 import pickle
 
+verbose = 0
+
 
 def import_design(design):
     #print("Creating Graph")
@@ -236,8 +238,8 @@ def get_edge_dict_out(v1, v2):
     return edge_dict
 
 
-def compare_vertex(mapping, g1, v1, g2, v2, depth, verbose):
-    #verbose = 1
+def compare_vertex(mapping, g1, v1, g2, v2, depth):
+    global verbose
     depth = depth+2
     if verbose:
         if v1["CELL_NAME"].split("/")[-1] != v2["name"]:
