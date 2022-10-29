@@ -71,7 +71,7 @@ class IP_Search:
             with open(json_f) as f:
                 design_data = json.load(f)
             
-            g = import_design(design_data)
+            g = import_design(design_data, flat=True)
             g = self.label_const_sources(g)
             g.write_pickle(fname=str(pickle_f))
         else:
@@ -286,7 +286,7 @@ class IP_Search:
                 tmp_mapping = compare_vertex(
                     mapping, g, g.vs[key], g_template, g_template.vs[x], 0, verbose
                 )
-                if tmp_mapping == 0:
+                if not tmp_mapping:
                     return 0
                 else:
                     mapping = tmp_mapping
@@ -588,7 +588,7 @@ class IP_Search:
                 mapping[v.index] = v2.index
                 mapping = compare_vertex(mapping, g, v, g_template, v2, 0)
 
-                if mapping != 0 and len(mapping) > 1:
+                if mapping and len(mapping) > 1:
                     # print("####### STARTING NEW FIND TEMPLATE: #######")
                     if GREEDY:
                         g_tmp_template, tmp_mapping = self.run_replace_greedy(
@@ -630,22 +630,6 @@ class IP_Search:
             for e in v.out_edges():
                 e["signal"] = "CONST1"
         return g
-
-    def print_graph(self, g):
-        print("GRAPH TOP:")
-        for p in g.attributes():
-            print("\t", p, ":", g[p])
-
-        for v in g.vs:
-            print(v.index)
-            for p in v.attributes():
-                print("\t", p, ":", v[p])
-
-        for e in g.es():
-            print(e.index)
-            for p in e.attributes():
-                print("\t", p, ":", e[p])
-            print("\t", e.source, "->", e.target)
 
     def start_from_checkpoint(self, g, i):
         g_template, mapping = self.open_checkpoint(i)

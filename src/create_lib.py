@@ -27,7 +27,7 @@ import sys
 
 from numpy import record
 
-from compare_v import compare_eqn
+from compare_v import compare_eqn, import_design, print_graph
 from config import RECORD_CORE_TCL, ROOT_PATH, VIVADO
 
 
@@ -56,92 +56,6 @@ class LibraryGenerator:
         self.export_designs()
         self.create_submodules()
         self.init_templates()
-
-    
-    def import_design(self, design):
-        '''Imports the json file into an iGraph'''
-        g = Graph(directed=True)
-        cells = design["CELLS"]
-        g.add_vertices(len(list(cells.keys())))
-        # Create all cells
-        for i, (cell, contents) in enumerate(cells.items()):
-            g_vertex = g.vs[i]
-            g_vertex["id"] = i
-            g_vertex["label"] = cell.split("/")[-1]
-            g_vertex["name"] = cell
-            if contents["IS_PRIMITIVE"] == 1:
-                g_vertex["IS_PRIMITIVE"] = 1
-                g_vertex["color"] = "orange"
-                g_vertex["ref"] = contents["REF_NAME"]
-                g_vertex["BEL_PROPERTIES"] = contents["BEL_PROPERTIES"]
-            else:
-                g_vertex["IS_PRIMITIVE"] = 0
-                g_vertex["color"] = "green"
-
-                # Sometimes ORIG_REF_NAME is empty if REF_NAME = original name
-                tmp = contents["ORIG_REF_NAME"]
-                g_vertex["ref"] = tmp if tmp else contents["REF_NAME"]
-
-                g_vertex["CELL_PROPERTIES"] = contents["CELL_PROPERTIES"]
-            if "CELL_NAME" in contents:
-                g_vertex["CELL_NAME"] = contents["CELL_NAME"]
-            g_vertex["parent"] = contents["PARENT"]
-            if g_vertex["ref"] in ["IBUF", "OBUF"]:
-                g_vertex["color"] = "blue"
-
-        # Create all edges
-        nets = design["NETS"]
-        edge_data = {
-            "conns": [],
-            "names": [],
-            "parent": [],
-            "in_pin": [],
-            "out_pin": [],
-            "signal": [],
-        }
-        for x in nets:
-            parent = nets[x]["PARENT"]
-            driver = nets[x]["DRIVER"]
-            driver_pin_name = driver.rsplit("/", 1)
-            try:
-                driver_idx = g.vs.find(name=driver_pin_name[0]).index
-                if "VCC/P" in driver:
-                    driver_type = "CONST1"
-                elif "GND/G" in driver:
-                    driver_type = "CONST0"
-                else:
-                    driver_type = "primitive"
-                driver_bool = "LEAF.0"
-                for leaf_bool in ["LEAF.0", "LEAF.1"]:
-                    for pin_dir in ["INPUTS", "OUTPUTS"]:
-                        for y in nets[x][leaf_bool][pin_dir]:
-                            if y == driver:
-                                driver_bool = leaf_bool
-                for leaf_bool in ["LEAF.0", "LEAF.1"]:
-                    for pin_dir in ["INPUTS", "OUTPUTS"]:
-                        for pin in nets[x][leaf_bool][pin_dir]:
-                            if pin != driver:
-                                pin = pin.rsplit("/", 1)
-                                pin_idx = g.vs.find(name=pin[0]).index
-                                if driver_bool == "LEAF.1" and leaf_bool == "LEAF.1":
-                                    edge_type = driver_type
-                                else:
-                                    edge_type = "port"
-                                edge_data["conns"].append((driver_idx, pin_idx))
-                                edge_data["names"].append(x.split("/")[-1])
-                                edge_data["parent"].append(parent)
-                                edge_data["in_pin"].append(pin[1])
-                                edge_data["out_pin"].append(driver_pin_name[1])
-                                edge_data["signal"].append(edge_type)
-            except: #TODO: figure this out
-                continue
-        g.add_edges(edge_data["conns"])
-        g.es["name"] = edge_data["names"]
-        g.es["parent"] = edge_data["parent"]
-        g.es["in_pin"] = edge_data["in_pin"]
-        g.es["out_pin"] = edge_data["out_pin"]
-        g.es["signal"] = edge_data["signal"]
-        return g
 
     
     def get_module_subgraph(self, graph_obj, parent):
@@ -185,7 +99,7 @@ class LibraryGenerator:
     def get_user_properties(self, g):
         '''Gets the User Properties of the Hierarchical Cell'''
         user_properties = {}
-        for v in g.vs.select(IS_PRIMITIVE=0):
+        for v in g.vs.select(IS_PRIMITIVE=False):
             for P in v["CELL_PROPERTIES"]:
                 prop_str = P.upper()
                 user_properties[prop_str] = [v["CELL_PROPERTIES"][P]]
@@ -208,7 +122,7 @@ class LibraryGenerator:
             v1 = g1.vs.find(name=v1_name)
             if v1["ref"] != v2["ref"]:
                 return False
-            if v1["IS_PRIMITIVE"] == 1:
+            if v1["IS_PRIMITIVE"]:
                 for P in v1["BEL_PROPERTIES"]:
                     if P in v2["BEL_PROPERTIES"]:
                         if ((P == "CONFIG.EQN") and not 
@@ -236,7 +150,7 @@ class LibraryGenerator:
         
         self.update_user_properties(g2, g1["user_properties"])
         g2.write_pickle(fname=str(template_file))
-        self.print_graph(
+        self.print_graph_version(
             template_file.parent.name, template_file.name.replace(".pkl", ""), g2
         )
         return True
@@ -250,7 +164,7 @@ class LibraryGenerator:
         g.delete_vertices(0)
         g.delete_vertices(g.vs.select(ref_in=["VCC", "GND"]))
         if primitive_only:
-            g.delete_vertices(g.vs.select(IS_PRIMITIVE=0))
+            g.delete_vertices(g.vs.select(IS_PRIMITIVE=False))
         visited_list = []
         spanning_lists = []
         for v in g.vs:
@@ -275,7 +189,7 @@ class LibraryGenerator:
         g["span"] = self.get_spanning_trees(g.copy(), False)
         g["primitive_count"] = len(g.vs.select(color="orange"))
         g["user_properties"] = user_properties
-        self.print_graph(ref_name, version_count, g)
+        self.print_graph_version(ref_name, version_count, g)
         file_name = self.templ_dir / ref_name / f"{version_count}.pkl"
         g.write_pickle(fname=str(file_name))
         return file_name
@@ -292,7 +206,7 @@ class LibraryGenerator:
     def create_templates(self, g, templates):
         '''Main function for creating all hierarchical cells from a design'''
         has_new_data = 0
-        for v in g.vs.select(IS_PRIMITIVE=0):
+        for v in g.vs.select(IS_PRIMITIVE=False):
             g_sub = self.get_module_subgraph(g, v["name"])
             user_properties = self.get_user_properties(g)
             g_sub["user_properties"] = user_properties
@@ -337,7 +251,7 @@ class LibraryGenerator:
             
             design = json.load(fj)
             fj.close()
-            g = self.import_design(design)
+            g = import_design(design, flat=False)
             self.create_templates(g, templates)
 
     
@@ -356,7 +270,7 @@ class LibraryGenerator:
                     templates[x][y] = {}
                     templates[x][y]["file"] = str(self.templ_dir / x / y)
                     g_template = Graph.Read_Pickle(templates[x][y]["file"])
-                    for t in g_template.vs.select(IS_PRIMITIVE=0, id_ne=0):
+                    for t in g_template.vs.select(IS_PRIMITIVE=False, id_ne=0):
                         if t["ref"] not in used_list:
                             used_list[t["ref"]] = [x]
                         else:
@@ -380,24 +294,9 @@ class LibraryGenerator:
         fj.close()
 
     
-    def print_graph(self, cell, version, graph_obj):
-        f = open(self.graphs_dir / cell / f"{version}.txt", "w")
-        print("GRAPH TOP:", file=f)
-        for p in graph_obj.attributes():
-            print(f"\t{p}: {graph_obj[p]}", file=f)
-
-        for v in graph_obj.vs:
-            print(v.index, file=f)
-            for p in v.attributes():
-                print(f"\t{p}: {v[p]}", file=f)
-
-        for e in graph_obj.es():
-            print(e.index, file=f)
-            for p in e.attributes():
-                print(f"\t{p}: {e[p]}", file=f)
-            print(f"\t{e.source} -> {e.target}", file=f)
-        f.close()
-
+    def print_graph_version(self, cell, version, graph_obj):
+        with open(self.graphs_dir / cell / f"{version}.txt", "w") as f:
+            print_graph(graph_obj, f)
 
     def record_core(self, design_f):
         """Runs the export design from a .dcp of"""
