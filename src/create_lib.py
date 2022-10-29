@@ -28,7 +28,7 @@ import sys
 from numpy import record
 
 from compare_v import compare_eqn
-from config import DATA_DIR, ROOT_PATH, VIVADO
+from config import RECORD_CORE_TCL, ROOT_PATH, VIVADO
 
 
 class LibraryGenerator:
@@ -306,7 +306,6 @@ class LibraryGenerator:
                 match = 0
                 for x in templates[v["ref"]]:
                     if self.compare_templates(g_sub, x):
-                        print("MATCHED:", v["ref"], x.name)
                         match = 1
                         break
                 if match == 0:
@@ -329,13 +328,11 @@ class LibraryGenerator:
         ]
         templates = {}
         for x in self.templ_dir.iterdir():
-            print("X:", x.name)
             templates[x.name] = []
             if x.is_dir():
                 for y in x.iterdir():
                     templates[x.name].append(y)
         for c in sorted(cell_graphs):
-            print(self.data_dir / c)
             fj = open(self.data_dir / c, "r")
             
             design = json.load(fj)
@@ -405,14 +402,18 @@ class LibraryGenerator:
     def record_core(self, design_f):
         """Runs the export design from a .dcp of"""
         tcl_arg = str(self.data_dir / design_f).replace(".dcp", "")
-        cmd = [VIVADO, "-notrace", "-mode", "batch", "-source", "record_core.tcl",
+        cmd = [VIVADO, "-notrace", "-mode", "batch", "-source", str(RECORD_CORE_TCL),
                "-tclarg", tcl_arg, "0", "-stack", "2000", "-nolog", "-nojournal"]
         proc = Popen(cmd, cwd=self.data_dir, stdout=PIPE, stderr=STDOUT, 
                      universal_newlines=True)
-        for line in proc.stdout:
-            sys.stdout.write(line)
         proc.communicate()
-        assert proc.returncode == 0
+        try:
+            assert proc.returncode == 0
+        except AssertionError:
+            for line in proc.stdout:
+                sys.stdout.write(line)
+            print("Error while running record_core.tcl...Exiting")
+            sys.exit()
 
 
     def export_designs(self):

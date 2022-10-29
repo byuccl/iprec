@@ -33,7 +33,7 @@ import random
 from subprocess import Popen, PIPE, STDOUT
 import sys
 
-from config import ROOT_PATH, VIVADO, DATA_DIR, LIB_DIR
+from config import ROOT_PATH, VIVADO, DATA_DIR, LIB_DIR, CORE_FUZZER_TCL
 
 
 class DataGenerator():
@@ -112,7 +112,7 @@ class DataGenerator():
     # TCL command wrapper functions
 
     def source_fuzzer_file(self):
-        print("source core_fuzzer.tcl", file=self.launch_file)
+        print(f"source {CORE_FUZZER_TCL}", file=self.launch_file)
 
     def init_design(self):
         print(f"set ip {self.ip}", file=self.launch_file)

@@ -30,7 +30,6 @@ import pickle
 from subprocess import Popen, STDOUT, PIPE
 import sys
 
-from sympy import limit
 
 from compare_v import compare_vertex, import_design
 from config import LIB_DIR, VIVADO, CHECKPT_DIR

@@ -19,7 +19,7 @@
 
 # This function is used in create_data.py that will export the IP core design into a JSON file to be imported into iGraph
 proc record_core {file_name} {
-    open_checkpoint "$file_name.dcp"
+    open_checkpoint -quiet "$file_name.dcp"
     set f [open "$file_name.json" w]
     set i 0
     puts $f "\{\"NETS\":\{"
@@ -80,7 +80,7 @@ proc record_core {file_name} {
         # All of the corresponding BEL's properties
     set cell_list [get_cells -hierarchical]
     foreach C $cell_list {
-        catch {list_property $C }
+        catch {list_property -quiet $C }
     }
     set i 0
     foreach C $cell_list {
@@ -271,6 +271,9 @@ proc record_flat_core {file_name} {
 }
 
 # Command line arguments to flatten or keep hierarchy of the dcp
+set_msg_config -id {Vivado 12-508} -limit 0
+set_msg_config -id {Common 17-346} -limit 0
+set_msg_config -severity INFO -limit 0
 if {[lindex $argv 1] == 0} {
     record_core [lindex $argv 0] 
 } else {
