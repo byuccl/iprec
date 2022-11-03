@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 
 # Copyright 2020-2022 IPRec Authors
@@ -28,15 +27,14 @@ This script takes in a selected IP Core then:
 import argparse
 from datetime import datetime
 import json
-from pathlib import Path
 import random
 from subprocess import Popen, PIPE, STDOUT
 import sys
 
-from config import ROOT_PATH, VIVADO, DATA_DIR, LIB_DIR, CORE_FUZZER_TCL
+from .config import ROOT_PATH, VIVADO, DATA_DIR, LIB_DIR, CORE_FUZZER_TCL
 
 
-class DataGenerator():
+class DataGenerator:
     """
     Generates designs that instantiates the single IP core with randomized properties.
     """
@@ -54,17 +52,18 @@ class DataGenerator():
 
         self.data_dir = DATA_DIR / self.ip
         self.lib_dir = LIB_DIR / self.ip
-        self.makeDirs()
-        self.getIPProperties()
-        self.fuzz_IP()
+        self.make_dirs()
+        self.get_ip_props()
+        self.fuzz_ip()
 
     # Steps up the Folder Structure
-    def makeDirs(self):
+    def make_dirs(self):
         self.lib_dir.mkdir(parents=True, exist_ok=True)
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
     # Executes the TCL script that creates the dictionary of parameters of the IP (in a JSON)
-    def getIPProperties(self):
+    def get_ip_props(self):
+        """Get Properties for configurable IP"""
         if not (ROOT_PATH / "data" / self.ip / "properties.json").exists():
             print("Running first time IP Property Dictionary Generation")
             self.launch_file = open(self.launch_file_name, "w", buffering=1)
@@ -73,25 +72,22 @@ class DataGenerator():
             print("get_prop_dict $ip", file=self.launch_file)
             self.launch_file.close()
             self.run_tcl_script(self.launch_file_name)
+        with open("data/" + self.ip + "/properties.json") as f:
+            self.ip_dict = json.load(f)
 
-        fj = open("data/" + self.ip + "/properties.json")
-        self.ip_dict = json.load(fj)
-        fj.close()
-
-
-    def randomProperties(self):
-        '''Randomize each parameter in the IP core'''
+    def randomize_props(self):
+        """Randomize each parameter in the IP core"""
 
         for x in self.ip_dict["PROPERTY"]:
             if x["type"] == "ENUM":
-                V = random.choice(x["values"])
-                self.set_property(x["name"], V)
+                val = random.choice(x["values"])
+                self.set_property(x["name"], val)
             elif not self.ignore_integer:
-                V = random.randrange(x["min"], x["max"], self.integer_step)
-                self.set_property(x["name"], str(V))
-    
-    def fuzz_IP(self):
-        '''Main fuzzer'''
+                val = random.randrange(x["min"], x["max"], self.integer_step)
+                self.set_property(x["name"], str(val))
+
+    def fuzz_ip(self):
+        """Main fuzzer"""
         self.launch_file = open(self.launch_file_name, "w", buffering=1)
 
         # Generate one with all default properties
@@ -103,9 +99,9 @@ class DataGenerator():
         for i in range(1, self.random_count):
             self.source_fuzzer_file()
             self.init_design()
-            self.randomProperties()
+            self.randomize_props()
             self.gen_design(i)
-        
+
         self.launch_file.close()
         self.run_tcl_script(self.launch_file_name)
 
@@ -125,30 +121,37 @@ class DataGenerator():
         print(f"synth -quiet {name} $ip", file=self.launch_file)
 
     def run_tcl_script(self, tcl_file):
-        cmd = [VIVADO, "-notrace", "-mode", "batch", "-source", tcl_file, 
-               "-stack", "2000", "-nolog", "-nojournal"]
-        proc = Popen(cmd, cwd=self.data_dir, stdout=PIPE, stderr=STDOUT,universal_newlines=True, check=True)
+        """Start subproccess to run selected tcl script"""
+        cmd = [
+            VIVADO,
+            "-notrace",
+            "-mode",
+            "batch",
+            "-source",
+            str(tcl_file),
+            "-stack",
+            "2000",
+            "-nolog",
+            "-nojournal",
+        ]
+        proc = Popen(cmd, cwd=self.data_dir, stdout=PIPE, stderr=STDOUT, universal_newlines=True)
         for line in proc.stdout:
-                sys.stdout.write(line)
+            sys.stdout.write(line)
         proc.communicate()
-        
+
 
 def main():
     parser = argparse.ArgumentParser()
-    # Selects the target IP
-    parser.add_argument('--ip', default="xilinx.com:ip:c_accum:12.0")
-    # Selects the FPGA architecture part
-    parser.add_argument('--part', default="xc7a100ticsg324-1L")
-    # Ignores integer parameters entirely
-    parser.add_argument('--ignore_integer', default=False, action="store_true")
-    # Downsample the integers parameters, only including every 'integer_step'
-    parser.add_argument('--integer_step', default=1, type=int)
-    # Number of random IP
-    parser.add_argument('--random_count', default=100, type=int)
-
+    parser.add_argument("--ip", default="xilinx.com:ip:c_accum:12.0")
+    parser.add_argument("--part", default="xc7a100ticsg324-1L")
+    parser.add_argument("--ignore_integer", default=False, action="store_true",
+                        help="Completely ignore integer parameters")
+    parser.add_argument("--integer_step", default=1, type=int,
+                        help="Downsample the integers parameters to be only every 'integer_step'")
+    parser.add_argument("--random_count", default=100, type=int, help="Number of random IP")
     args = parser.parse_args()
-
     DataGenerator(**args.__dict__)
+
 
 if __name__ == "__main__":
     main()

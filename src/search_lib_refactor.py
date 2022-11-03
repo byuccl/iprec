@@ -70,7 +70,7 @@ class IP_Search:
         if not pickle_f.exists():
             with open(json_f) as f:
                 design_data = json.load(f)
-            
+
             g = import_design(design_data, flat=True)
             g = self.label_const_sources(g)
             g.write_pickle(fname=str(pickle_f))
@@ -97,7 +97,6 @@ class IP_Search:
         else:
             print("NO FOUND TEMPLATES")
 
-    
     def save_checkpoint(self, g, g_template, mapping):
         CHECKPT_DIR.mkdir(exist_ok=True)
         while True:
@@ -109,7 +108,6 @@ class IP_Search:
             )
             yield
             self.checkpt += 1
-
 
     def open_checkpoint(self, checkpt):
         mapping = {}
@@ -246,14 +244,15 @@ class IP_Search:
 
         return g, 1, new_vertices
 
-    
     def get_spanning_hier_cells(self, g_template, mapping, limit_vertices):
         """Gets all hier cells connected to the limit_vertices list"""
         mapped_id = mapping.values() if limit_vertices is not None else limit_vertices
 
         max_v = len(g_template.vs)
         mapped_id = [x for x in mapped_id if x < max_v]
-        neighbor_vs = g_template.neighborhood(vertices=mapped_id, order=1, mode="all", mindist=1)
+        neighbor_vs = g_template.neighborhood(
+            vertices=mapped_id, order=1, mode="all", mindist=1
+        )
         neighborhood = {item for sublist in neighbor_vs for item in sublist}
         hier_vs_id = []
         for x in neighborhood:
@@ -528,8 +527,18 @@ class IP_Search:
             while 1:
                 # Descend as much as possible
                 original_length = len(g_template.vs)
-                (g_template, mapping, descend_decision_dec, descend_pass_flag, dec_list) = self.descend(g, g_template, mapping, None)  #  noqua
-                g_template, mapping, ascend_decision_list = self.ascend(g, g_template, mapping)
+                (
+                    g_template,
+                    mapping,
+                    descend_decision_dec,
+                    descend_pass_flag,
+                    dec_list,
+                ) = self.descend(
+                    g, g_template, mapping, None
+                )  #  noqua
+                g_template, mapping, ascend_decision_list = self.ascend(
+                    g, g_template, mapping
+                )
                 if len(g_template.vs) == original_length:
                     break
             # Ascending and Descending has settled
@@ -546,9 +555,11 @@ class IP_Search:
                     self.g_temp = g_template
                     self.g_par = g
                     self.ret_graph = 1
-                    g_descended, mapping_descended, new_vertex_list = self.descend_parallel(
-                        x
-                    )
+                    (
+                        g_descended,
+                        mapping_descended,
+                        new_vertex_list,
+                    ) = self.descend_parallel(x)
                     g_descended, mapping_descended = self.run_replace(
                         g, g_descended, mapping_descended, depth + 1
                     )  # Recurse
@@ -681,7 +692,6 @@ class IP_Search:
         proc.communicate()
         assert proc.returncode == 0
 
-
     def print_json_map(self, g_template, mapping):
         """
         Print the matched templates in the design to json (final result).
@@ -706,16 +716,24 @@ class IP_Search:
             json.dump(obj=design, fp=f, indent=2, sort_keys=True)
 
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("design", help="DCP file to search for IP", type=Path)
     parser.add_argument("IP")
-    parser.add_argument("--checkpoint", "-c", help="Checkpoint to continue search from",
-                        default=False, type=int)
-    parser.add_argument("--force", "-f", 
-                        help="Force the Graph object to be recreated from the netlist",
-                        default=False, action="store_true")
+    parser.add_argument(
+        "--checkpoint",
+        "-c",
+        help="Checkpoint to continue search from",
+        default=False,
+        type=int,
+    )
+    parser.add_argument(
+        "--force",
+        "-f",
+        help="Force the Graph object to be recreated from the netlist",
+        default=False,
+        action="store_true",
+    )
 
     args = parser.parse_args()
 
