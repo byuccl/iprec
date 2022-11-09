@@ -22,31 +22,14 @@ import argparse
 import pickle
 import igraph
 import time
+import logging
+import sys
 from igraph import *
 from compare_v import *
 from multiprocessing import Pool
 from .config import LIB_DIR
 
 # This script takes in a design (.dcp file) and an IP core name and searches for the IP core within the design
-
-parser = argparse.ArgumentParser()
-parser.add_argument("file_name", nargs=1)
-parser.add_argument(
-    "--ip", default="xilinx.com:ip:c_accum:12.0"
-)  # Selects the target tile typ
-
-args = parser.parse_args()
-print(args)
-
-greedy_method = 1
-
-ip = args.ip
-file_name = args.file_name[0]
-templates = {}
-prim_count = 0
-mapped_list = []
-used_list = {}
-
 
 # Checks if the incoming hier template matches port definitions
 def replace_pre_check(g, v1_id, g_hier):
@@ -102,9 +85,9 @@ def replace_hier_cell(g, g_hier, v1_id, direction):
     v1 = g.vs[v1_id]
     for e in g_hier.es:
         if e.source not in v_dict:
-            print("MISSING:", e.source, e.target, graph_obj.vs[e.source]["name"])
+            logging.info("MISSING:", e.source, e.target, graph_obj.vs[e.source]["name"])
         elif e.target not in v_dict:
-            print("MISSING:", e.source, e.target, graph_obj.vs[e.target]["name"])
+            logging.info("MISSING:", e.source, e.target, graph_obj.vs[e.target]["name"])
         else:
             g.add_edges([(v_dict[e.source], v_dict[e.target])], e.attributes())
     v1_port_edges = v1.out_edges() + v1.in_edges()
@@ -203,7 +186,7 @@ def save_checkpoint(g, g_template, mapping):
     for i in range(100):
         file_name = "checkpoints/checkpoint." + str(i) + ".mapping.pkl"
         if os.path.exists(file_name) == False:
-            print("\t\tSAVING CHECKPOINT:", i, len(mapping))
+            logging.info("\t\tSAVING CHECKPOINT:", i, len(mapping))
             with open(file_name, "wb") as handle:
                 pickle.dump(mapping, handle, protocol=pickle.HIGHEST_PROTOCOL)
             g_template.write_pickle(fname=file_name.replace(".mapping", ".graph"))
@@ -279,9 +262,6 @@ def update_map(g, g_template, mapping, new_vertices, verbose):
     return mapping
 
 
-descend_failed_dict = {}
-
-
 def print_map_cells(mapping, g, g_template):
     # return
     err_count = 0
@@ -318,7 +298,7 @@ def descend_parallel(ver):
 
 def descend(g, g_template, pass_mapping, limit_vertices):
     global templates, descend_failed_dict, ref, g_temp, v_par_id, ret_graph, g_par, return_mapping
-    print("\tDESCEND")
+    logging.info("DESCEND")
     pass_graph = ""
     return_mapping = pass_mapping
     descend_pass_flag = 1
@@ -349,15 +329,15 @@ def descend(g, g_template, pass_mapping, limit_vertices):
                 for x in templates[ref].keys()
                 if x not in descend_failed_dict[v_par_id]
             )
-            pool = Pool(processes=8)
-            results = pool.map(descend_parallel, versions)
-            for idx, x in enumerate(results):
-                if x:
-                    pass_num += 1
-                    possible_matches.append(versions[idx])
-                    average += templates[ref][versions[idx]]["primitive_count"]
-                else:
-                    descend_failed_dict[v_par_id].append(versions[idx])
+            with Pool(processes=8) as pool:
+                results = pool.map(descend_parallel, versions)
+                for idx, x in enumerate(results):
+                    if x:
+                        pass_num += 1
+                        possible_matches.append(versions[idx])
+                        average += templates[ref][versions[idx]]["primitive_count"]
+                    else:
+                        descend_failed_dict[v_par_id].append(versions[idx])
             average = average / pass_num if pass_num != 0 else 0
             # print("AVERAGE:",average,pass_num,best_average)
             if average >= best_average:
@@ -388,7 +368,7 @@ def descend(g, g_template, pass_mapping, limit_vertices):
 
 def ascend(g, g_template, pass_mapping):
     global templates
-    print("\tASCEND")
+    logging.info("\tASCEND")
     pass_graph = ""
     return_mapping = pass_mapping
 
@@ -430,7 +410,7 @@ def ascend(g, g_template, pass_mapping):
 
 def recurse_descend(descend_decision_dec, g, g_template, mapping, depth):
     global templates, v_par_id, ref, ret_graph, g_par, g_temp
-    print("\tRECURSE DESCEND")
+    logging.info("\tRECURSE DESCEND")
     ret_graph = 1
     ref = descend_decision_dec[1]
     v_par_id = descend_decision_dec[0]
@@ -442,7 +422,7 @@ def recurse_descend(descend_decision_dec, g, g_template, mapping, depth):
 
 def recurse_ascend(ascend_decision_list, g, g_template, mapping, depth):
     global templates
-    print("\tRECURSE ASCEND")
+    logging.info("\tRECURSE ASCEND")
     if len(ascend_decision_list) == 0:
         return g_template, mapping, 0
 
@@ -457,12 +437,10 @@ def recurse_ascend(ascend_decision_list, g, g_template, mapping, depth):
                 g_new, g_hier, v_id, "ascend"
             )
             tmp_mapping = update_map(g, g_new, dict(mapping), new_vertices, 0)
-            if greedy_method == 1:
-                g_tmp, tmp_mapping = run_replace_greedy(
-                    g, g_new, tmp_mapping, depth + 1
-                )
-            else:
-                g_tmp = g_new
+
+            g_tmp, tmp_mapping = run_replace_greedy(g, g_new, tmp_mapping, depth + 1)
+            # g_tmp = g_new # Not greedy
+
             if len(tmp_mapping) >= len(mapping_ascended):
                 g_ascended = g_tmp.copy()
                 mapping_ascended = dict(tmp_mapping)
@@ -516,7 +494,7 @@ def run_replace(g, g_template, mapping, depth):
     biggest_graph = g_template
     biggest_map = mapping
     recurse_pass_flag = 0
-    print("\n#### Starting Ascend/descend Function ####\n DEPTH:", depth)
+    logging.info("\n#### Starting Ascend/descend Function ####\n DEPTH:", depth)
     while 1:
         descend_decision_dec, ascend_decision_dec = None, []
         dec_list = []
@@ -538,9 +516,9 @@ def run_replace(g, g_template, mapping, depth):
             biggest_map = mapping
             biggest_graph = g_template
         # Recursively Try all Descending decisions
-        print("DEC LIST:", dec_list)
+        logging.info("DEC LIST:", dec_list)
         if len(dec_list) != 0:
-            print("DESCENDING RECURSIVE:", dec_list)
+            logging.info("DESCENDING RECURSIVE:", dec_list)
             for x in dec_list[2]:
                 ref = dec_list[1]
                 v_par_id = dec_list[0]
@@ -571,7 +549,7 @@ def run_replace(g, g_template, mapping, depth):
 
 def find_template(g, g_template, verbose, template, ver):
     global prim_count, mapped_list, templates
-    print("SEARCHING:", template, ver)
+    logging.info("SEARCHING:", template, ver)
     template_name = g_template.vs[0]["ref"]
     biggest_map, biggest_graph = [], None
     # have span max be on a sliding scale - based off of len(templates)
@@ -585,20 +563,20 @@ def find_template(g, g_template, verbose, template, ver):
             if has_complex_prim == 0:
                 continue
         v2 = g_template.vs[span["indices"][0]]
-        print("\tNEW SPAN:", span["indices"], template, ver)
+        logging.info("\tNEW SPAN:", span["indices"], template, ver)
         for v in g.vs.select(ref=v2["ref"]):
             mapping = {}
             mapping[v.index] = v2.index
             mapping = compare_vertex(mapping, g, v, g_template, v2, 0, verbose)
 
             if mapping != 0 and len(mapping) > 1:
-                print("####### STARTING NEW FIND TEMPLATE: #######")
-                if greedy_method == 1:
-                    g_tmp_template, tmp_mapping = run_replace_greedy(
-                        g, g_template, mapping, 0
-                    )
-                else:
-                    g_tmp_template, tmp_mapping = run_replace(g, g_template, mapping, 0)
+                logging.info("####### STARTING NEW FIND TEMPLATE: #######")
+
+                g_tmp_template, tmp_mapping = run_replace_greedy(
+                    g, g_template, mapping, 0
+                )
+                # g_tmp_template,tmp_mapping = run_replace(g,g_template,mapping,0)
+
                 save_checkpoint(g, g_tmp_template, tmp_mapping)
                 if len(tmp_mapping) > len(biggest_map):
                     biggest_map = tmp_mapping
@@ -686,17 +664,15 @@ def print_all_cells(g, g_template, mapping):
 def import_dcp(file_name):
     dcp = file_name.replace(".dcp", "")
     os.system(
-        "vivado -mode batch -source src/record_core.tcl -tclarg "
-        + dcp
-        + " 1 -stack 2000"
+        f"script -q -c 'vivado -mode batch -source record_core.tcl -tclarg {dcp} 1 -stack 2000'"
     )
 
 
-def main():
-    global file_name, templates, used_list
-    if ".dcp" in file_name:
-        import_dcp(file_name)
-        file_name = file_name.replace(".dcp", ".json")
+def find(ip, filename):
+    global templates, used_list
+    if ".dcp" in filename:
+        import_dcp(filename)
+        filename = filename.replace(".dcp", ".json")
 
     fj = open(LIB_DIR + ip + "templates.json")
     tmp = json.load(fj)
@@ -704,15 +680,15 @@ def main():
     used_list = tmp["used"]
     fj.close()
 
-    if os.path.exists(file_name.replace(".json", ".pkl")) == False:
-        fj = open(file_name)
+    if not os.path.exists(filename.replace(".json", ".pkl")):
+        fj = open(filename)
         design = json.load(fj)
         fj.close()
         g = import_design(design)
         g = label_const_sources(g)
-        g.write_pickle(fname=file_name.replace(".json", ".pkl"))
+        g.write_pickle(fname=filename.replace(".json", ".pkl"))
     else:
-        g = igraph.Graph.Read_Pickle(file_name.replace(".json", ".pkl"))
+        g = igraph.Graph.Read_Pickle(filename.replace(".json", ".pkl"))
 
     # Either search, or start from a known checkpoint
     g_template, template_mapping = search(g)
@@ -726,4 +702,27 @@ def main():
         print("NO FOUND TEMPLATES")
 
 
-main()
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("filename", nargs=1)
+    parser.add_argument(
+        "--ip", default="xilinx.com:ip:c_accum:12.0"
+    )  # Selects the target tile typ
+    parser.add_argument("--log", default="warning")  # Selects the target tile typ
+
+    args = parser.parse_args()
+    print(args)
+
+    logging.basicConfig(level=getattr(logging, args.log.upper()))
+
+    find(args.ip, args.filename[0])
+
+
+templates = {}
+prim_count = 0
+mapped_list = []
+used_list = {}
+descend_failed_dict = {}
+
+if __name__ == "__main__":
+    main()
