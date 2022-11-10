@@ -48,6 +48,8 @@ class DataGenerator:
         self.launch_file_name = DATA_DIR / ip / "launch.tcl"
         self.ip_dict = {}
         self.launch_file = None
+        self.log_file = DATA_DIR / self.ip / "vivado_runs.log"
+        self.log_file.unlink(missing_ok=True)
         random.seed(datetime.now().timestamp())
 
         self.data_dir = DATA_DIR / self.ip
@@ -108,7 +110,7 @@ class DataGenerator:
     # TCL command wrapper functions
 
     def source_fuzzer_file(self):
-        print(f"source {CORE_FUZZER_TCL}", file=self.launch_file)
+        print(f"source {CORE_FUZZER_TCL} -notrace", file=self.launch_file)
 
     def init_design(self):
         print(f"set ip {self.ip}", file=self.launch_file)
@@ -118,7 +120,7 @@ class DataGenerator:
         print(f"set_ip_property {prop} {value}", file=self.launch_file)
 
     def gen_design(self, name):
-        print(f"synth -quiet {name} $ip", file=self.launch_file)
+        print(f"synth {name} $ip", file=self.launch_file)
 
     def run_tcl_script(self, tcl_file):
         """Start subproccess to run selected tcl script"""
@@ -134,10 +136,9 @@ class DataGenerator:
             "-nolog",
             "-nojournal",
         ]
-        proc = Popen(cmd, cwd=ROOT_PATH, stdout=PIPE, stderr=STDOUT, universal_newlines=True)
-        for line in proc.stdout:
-            sys.stdout.write(line)
-        proc.communicate()
+        with open(self.log_file, "a+") as f:
+            proc = Popen(cmd, cwd=ROOT_PATH, stdout=f, stderr=STDOUT, universal_newlines=True)
+            proc.communicate()
 
 
 def main():
