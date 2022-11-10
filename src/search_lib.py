@@ -25,15 +25,13 @@ import time
 from igraph import *
 from compare_v import *
 from multiprocessing import Pool
-from .config import LIB_DIR
+from config import LIB_DIR
 
 # This script takes in a design (.dcp file) and an IP core name and searches for the IP core within the design
 
 parser = argparse.ArgumentParser()
 parser.add_argument("file_name", nargs=1)
-parser.add_argument(
-    "--ip", default="xilinx.com:ip:c_accum:12.0"
-)  # Selects the target tile typ
+parser.add_argument("--ip", default="xilinx.com:ip:c_accum:12.0")  # Selects the target tile typ
 
 args = parser.parse_args()
 print(args)
@@ -115,10 +113,7 @@ def replace_hier_cell(g, g_hier, v1_id, direction):
             return g, 0, []
         for e1 in es1:
             e_new = g.add_edge(e1.source, e2.target)
-            if (
-                g.vs[e1.source]["color"] == "green"
-                or g.vs[e2.target]["color"] == "green"
-            ):
+            if g.vs[e1.source]["color"] == "green" or g.vs[e2.target]["color"] == "green":
                 e_new["signal"] = "port"
             elif g.vs[e1.source]["ref"] == "VCC":
                 e_new["signal"] = "CONST1"
@@ -138,10 +133,7 @@ def replace_hier_cell(g, g_hier, v1_id, direction):
             return g, 0, []
         for e1 in es1:
             e_new = g.add_edge(e2.source, e1.target)
-            if (
-                g.vs[e2.source]["color"] == "green"
-                or g.vs[e1.target]["color"] == "green"
-            ):
+            if g.vs[e2.source]["color"] == "green" or g.vs[e1.target]["color"] == "green":
                 e_new["signal"] = "port"
             elif g.vs[e2.source]["ref"] == "VCC":
                 e_new["signal"] = "CONST1"
@@ -156,9 +148,7 @@ def replace_hier_cell(g, g_hier, v1_id, direction):
     v2_top["color"] = "black"
     v1_top = g.vs[v1_id]
     v1_top["color"] = "black"
-    remove_es = (
-        v2_top.in_edges() + v2_top.out_edges() + v1_top.in_edges() + v1_top.out_edges()
-    )
+    remove_es = v2_top.in_edges() + v2_top.out_edges() + v1_top.in_edges() + v1_top.out_edges()
     g.delete_edges(remove_es)
     if direction == "ascend":
         contracted_order = list(range(0, len(g.vs)))
@@ -184,9 +174,7 @@ def get_spanning_hier_cells(g_template, mapping, limit_vertices):
 
     max_v = len(g_template.vs)
     mapped_id = list(x for x in mapped_id if x < max_v)
-    neighbor_vs = g_template.neighborhood(
-        vertices=mapped_id, order=1, mode="all", mindist=1
-    )
+    neighbor_vs = g_template.neighborhood(vertices=mapped_id, order=1, mode="all", mindist=1)
     neighborhood = [item for sublist in neighbor_vs for item in sublist]
     neighborhood = list(set(neighborhood))
     hier_vs_id = []
@@ -300,9 +288,7 @@ def descend_parallel(ver):
     global templates, ref, g_temp, v_par_id, ret_graph, g, g_par, return_mapping
     g_hier = igraph.Graph.Read_Pickle(templates[ref][ver]["file"])
     g_new = g_temp.copy()
-    g_new, pass_flag, new_vertices = replace_hier_cell(
-        g_new, g_hier, v_par_id, "descend"
-    )
+    g_new, pass_flag, new_vertices = replace_hier_cell(g_new, g_hier, v_par_id, "descend")
     tmp_graph = g_new.copy()
     if pass_flag == 1:
         mapping = update_map(g_par, g_new, dict(return_mapping), new_vertices, 0)
@@ -327,9 +313,7 @@ def descend(g, g_template, pass_mapping, limit_vertices):
     best_decision = None
     while 1:
         decision_list = []
-        v_hier_id_list = get_spanning_hier_cells(
-            g_template, pass_mapping, limit_vertices
-        )
+        v_hier_id_list = get_spanning_hier_cells(g_template, pass_mapping, limit_vertices)
         updated_flag = 0
         for v_hier_id in v_hier_id_list:
 
@@ -345,9 +329,7 @@ def descend(g, g_template, pass_mapping, limit_vertices):
             v_par_id = v_hier_id
             ret_graph = 2
             versions = list(
-                x
-                for x in templates[ref].keys()
-                if x not in descend_failed_dict[v_par_id]
+                x for x in templates[ref].keys() if x not in descend_failed_dict[v_par_id]
             )
             pool = Pool(processes=8)
             results = pool.map(descend_parallel, versions)
@@ -365,9 +347,7 @@ def descend(g, g_template, pass_mapping, limit_vertices):
                 decision_list = [v_par_id, ref, possible_matches]
             if pass_num == 1:
                 ret_graph = 1
-                g_template, return_mapping, new_vertex_list = descend_parallel(
-                    possible_matches[0]
-                )
+                g_template, return_mapping, new_vertex_list = descend_parallel(possible_matches[0])
                 if limit_vertices != None:
                     limit_vertices += new_vertex_list
                 else:
@@ -410,9 +390,7 @@ def ascend(g, g_template, pass_mapping):
                     )
                     tmp_graph = g_new.copy()
                     if pass_flag == 1:
-                        mapping = update_map(
-                            g, g_new, dict(return_mapping), new_vertices, 0
-                        )
+                        mapping = update_map(g, g_new, dict(return_mapping), new_vertices, 0)
                         if mapping != 0:
                             pass_num += 1
                             possible_matches.append((ver, v_hier_top.index))
@@ -434,9 +412,7 @@ def recurse_descend(descend_decision_dec, g, g_template, mapping, depth):
     ret_graph = 1
     ref = descend_decision_dec[1]
     v_par_id = descend_decision_dec[0]
-    g_descended, mapping_descended, new_vertex_list = descend_parallel(
-        descend_decision_dec[2]
-    )
+    g_descended, mapping_descended, new_vertex_list = descend_parallel(descend_decision_dec[2])
     return g_descended, mapping_descended, 1
 
 
@@ -453,14 +429,10 @@ def recurse_ascend(ascend_decision_list, g, g_template, mapping, depth):
             ver, v_id = decision
             g_hier = igraph.Graph.Read_Pickle(templates[ref][ver]["file"])
             g_new = g_template.copy()
-            g_new, pass_flag, new_vertices = replace_hier_cell(
-                g_new, g_hier, v_id, "ascend"
-            )
+            g_new, pass_flag, new_vertices = replace_hier_cell(g_new, g_hier, v_id, "ascend")
             tmp_mapping = update_map(g, g_new, dict(mapping), new_vertices, 0)
             if greedy_method == 1:
-                g_tmp, tmp_mapping = run_replace_greedy(
-                    g, g_new, tmp_mapping, depth + 1
-                )
+                g_tmp, tmp_mapping = run_replace_greedy(g, g_new, tmp_mapping, depth + 1)
             else:
                 g_tmp = g_new
             if len(tmp_mapping) >= len(mapping_ascended):
@@ -594,9 +566,7 @@ def find_template(g, g_template, verbose, template, ver):
             if mapping != 0 and len(mapping) > 1:
                 print("####### STARTING NEW FIND TEMPLATE: #######")
                 if greedy_method == 1:
-                    g_tmp_template, tmp_mapping = run_replace_greedy(
-                        g, g_template, mapping, 0
-                    )
+                    g_tmp_template, tmp_mapping = run_replace_greedy(g, g_template, mapping, 0)
                 else:
                     g_tmp_template, tmp_mapping = run_replace(g, g_template, mapping, 0)
                 save_checkpoint(g, g_tmp_template, tmp_mapping)
@@ -616,12 +586,8 @@ def search(g):
             for y in templates[x]:
                 g_template = igraph.Graph.Read_Pickle(templates[x][y]["file"])
                 verbose = 0
-                g_template_tmp, tmp_template_mapping = find_template(
-                    g, g_template, verbose, x, y
-                )
-                if tmp_template_mapping != 0 and len(tmp_template_mapping) > len(
-                    biggest_map
-                ):
+                g_template_tmp, tmp_template_mapping = find_template(g, g_template, verbose, x, y)
+                if tmp_template_mapping != 0 and len(tmp_template_mapping) > len(biggest_map):
                     biggest_map = tmp_template_mapping
                     biggest_graph = g_template_tmp.copy()
 
@@ -685,11 +651,7 @@ def print_all_cells(g, g_template, mapping):
 
 def import_dcp(file_name):
     dcp = file_name.replace(".dcp", "")
-    os.system(
-        "vivado -mode batch -source src/record_core.tcl -tclarg "
-        + dcp
-        + " 1 -stack 2000"
-    )
+    os.system("vivado -mode batch -source src/record_core.tcl -tclarg " + dcp + " 1 -stack 2000")
 
 
 def main():
