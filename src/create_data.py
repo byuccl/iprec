@@ -31,7 +31,7 @@ import random
 from subprocess import Popen, PIPE, STDOUT
 import sys
 
-from .config import ROOT_PATH, VIVADO, DATA_DIR, LIB_DIR, CORE_FUZZER_TCL
+from config import ROOT_PATH, DATA_DIR, LIB_DIR, CORE_FUZZER_TCL
 
 
 class DataGenerator:
@@ -48,7 +48,7 @@ class DataGenerator:
         self.launch_file_name = DATA_DIR / ip / "launch.tcl"
         self.ip_dict = {}
         self.launch_file = None
-        random.seed(datetime.now())
+        random.seed(datetime.now().timestamp())
 
         self.data_dir = DATA_DIR / self.ip
         self.lib_dir = LIB_DIR / self.ip
@@ -123,7 +123,7 @@ class DataGenerator:
     def run_tcl_script(self, tcl_file):
         """Start subproccess to run selected tcl script"""
         cmd = [
-            VIVADO,
+            "vivado",
             "-notrace",
             "-mode",
             "batch",
@@ -144,10 +144,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ip", default="xilinx.com:ip:c_accum:12.0")
     parser.add_argument("--part", default="xc7a100ticsg324-1L")
-    parser.add_argument("--ignore_integer", default=False, action="store_true",
-                        help="Completely ignore integer parameters")
-    parser.add_argument("--integer_step", default=1, type=int,
-                        help="Downsample the integers parameters to be only every 'integer_step'")
+    parser.add_argument(
+        "--ignore_integer",
+        default=False,
+        action="store_true",
+        help="Completely ignore integer parameters",
+    )
+    parser.add_argument(
+        "--integer_step",
+        default=1,
+        type=int,
+        help="Downsample the integers parameters to be only every 'integer_step'",
+    )
     parser.add_argument("--random_count", default=100, type=int, help="Number of random IP")
     args = parser.parse_args()
     DataGenerator(**args.__dict__)

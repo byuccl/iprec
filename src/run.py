@@ -35,8 +35,8 @@ import os
 import argparse
 from pathlib import Path
 
-from .create_data import DataGenerator
-from .create_lib import LibraryGenerator
+from create_data import DataGenerator
+from create_lib import LibraryGenerator
 
 ROOT_PATH = Path(__file__).resolve().parent.parent
 

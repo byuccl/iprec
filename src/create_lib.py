@@ -28,8 +28,8 @@ from pathlib import Path
 from subprocess import Popen, STDOUT, PIPE
 from igraph import Graph
 
-from .compare_v_refactor import compare_eqn, import_design, print_graph
-from .config import RECORD_CORE_TCL, ROOT_PATH, VIVADO
+from compare_v_refactor import compare_eqn, import_design, print_graph
+from config import RECORD_CORE_TCL, ROOT_PATH
 
 
 class LibraryGenerator:
@@ -288,7 +288,7 @@ class LibraryGenerator:
         """Runs the export design from a .dcp of"""
         tcl_arg = str(self.data_dir / design_f).replace(".dcp", "")
         cmd = [
-            VIVADO,
+            "vivado",
             "-notrace",
             "-mode",
             "batch",
