@@ -134,7 +134,7 @@ class DataGenerator:
             "-nolog",
             "-nojournal",
         ]
-        proc = Popen(cmd, cwd=self.data_dir, stdout=PIPE, stderr=STDOUT, universal_newlines=True)
+        proc = Popen(cmd, cwd=ROOT_PATH, stdout=PIPE, stderr=STDOUT, universal_newlines=True)
         for line in proc.stdout:
             sys.stdout.write(line)
         proc.communicate()
