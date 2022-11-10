@@ -35,10 +35,9 @@ import os
 import argparse
 from pathlib import Path
 
+from config import ROOT_PATH
 from create_data import DataGenerator
 from create_lib import LibraryGenerator
-
-ROOT_PATH = Path(__file__).resolve().parent.parent
 
 
 def run_flow(ip, count=100, part="xc7a100ticsg324-1L", design=None, force=False):
