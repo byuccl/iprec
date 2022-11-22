@@ -31,7 +31,7 @@ import random
 from subprocess import Popen, PIPE, STDOUT
 import sys
 
-from .config import ROOT_PATH, VIVADO, DATA_DIR, LIB_DIR, CORE_FUZZER_TCL
+from config import ROOT_PATH, DATA_DIR, LIB_DIR, CORE_FUZZER_TCL
 
 
 class DataGenerator:
@@ -48,7 +48,9 @@ class DataGenerator:
         self.launch_file_name = DATA_DIR / ip / "launch.tcl"
         self.ip_dict = {}
         self.launch_file = None
-        random.seed(datetime.now())
+        self.log_file = DATA_DIR / self.ip / "vivado_runs.log"
+        self.log_file.unlink(missing_ok=True)
+        random.seed(datetime.now().timestamp())
 
         self.data_dir = DATA_DIR / self.ip
         self.lib_dir = LIB_DIR / self.ip
@@ -108,7 +110,7 @@ class DataGenerator:
     # TCL command wrapper functions
 
     def source_fuzzer_file(self):
-        print(f"source {CORE_FUZZER_TCL}", file=self.launch_file)
+        print(f"source {CORE_FUZZER_TCL} -notrace", file=self.launch_file)
 
     def init_design(self):
         print(f"set ip {self.ip}", file=self.launch_file)
@@ -118,12 +120,12 @@ class DataGenerator:
         print(f"set_ip_property {prop} {value}", file=self.launch_file)
 
     def gen_design(self, name):
-        print(f"synth -quiet {name} $ip", file=self.launch_file)
+        print(f"synth {name} $ip", file=self.launch_file)
 
     def run_tcl_script(self, tcl_file):
         """Start subproccess to run selected tcl script"""
         cmd = [
-            VIVADO,
+            "vivado",
             "-notrace",
             "-mode",
             "batch",
@@ -134,20 +136,27 @@ class DataGenerator:
             "-nolog",
             "-nojournal",
         ]
-        proc = Popen(cmd, cwd=self.data_dir, stdout=PIPE, stderr=STDOUT, universal_newlines=True)
-        for line in proc.stdout:
-            sys.stdout.write(line)
-        proc.communicate()
+        with open(self.log_file, "a+") as f:
+            proc = Popen(cmd, cwd=ROOT_PATH, stdout=f, stderr=STDOUT, universal_newlines=True)
+            proc.communicate()
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ip", default="xilinx.com:ip:c_accum:12.0")
     parser.add_argument("--part", default="xc7a100ticsg324-1L")
-    parser.add_argument("--ignore_integer", default=False, action="store_true",
-                        help="Completely ignore integer parameters")
-    parser.add_argument("--integer_step", default=1, type=int,
-                        help="Downsample the integers parameters to be only every 'integer_step'")
+    parser.add_argument(
+        "--ignore_integer",
+        default=False,
+        action="store_true",
+        help="Completely ignore integer parameters",
+    )
+    parser.add_argument(
+        "--integer_step",
+        default=1,
+        type=int,
+        help="Downsample the integers parameters to be only every 'integer_step'",
+    )
     parser.add_argument("--random_count", default=100, type=int, help="Number of random IP")
     args = parser.parse_args()
     DataGenerator(**args.__dict__)

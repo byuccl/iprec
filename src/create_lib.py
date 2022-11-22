@@ -28,8 +28,8 @@ from pathlib import Path
 from subprocess import Popen, STDOUT, PIPE
 from igraph import Graph
 
-from .compare_v_refactor import compare_eqn, import_design, print_graph
-from .config import RECORD_CORE_TCL, ROOT_PATH, VIVADO
+from compare_v_refactor import compare_eqn, import_design, print_graph
+from config import RECORD_CORE_TCL, ROOT_PATH
 
 
 class LibraryGenerator:
@@ -50,6 +50,9 @@ class LibraryGenerator:
             self.data_dir.mkdir(parents=True, exist_ok=True)
 
         self.lib_dir = ROOT_PATH / "library" / self.ip
+        self.log_file = self.lib_dir / "vivado_log.txt"
+        self.log_file.unlink(missing_ok=True)
+
         self.templ_dir = self.lib_dir / "templates"
         self.graphs_dir = self.lib_dir / "graphs"
         self.templ_dir.mkdir(parents=True, exist_ok=True)
@@ -288,7 +291,7 @@ class LibraryGenerator:
         """Runs the export design from a .dcp of"""
         tcl_arg = str(self.data_dir / design_f).replace(".dcp", "")
         cmd = [
-            VIVADO,
+            "vivado",
             "-notrace",
             "-mode",
             "batch",
@@ -302,15 +305,9 @@ class LibraryGenerator:
             "-nolog",
             "-nojournal",
         ]
-        proc = Popen(cmd, cwd=self.data_dir, stdout=PIPE, stderr=STDOUT, universal_newlines=True)
-        proc.communicate()
-        try:
-            assert proc.returncode == 0
-        except AssertionError:
-            for line in proc.stdout:
-                sys.stdout.write(line)
-            print("Error while running record_core.tcl...Exiting")
-            sys.exit()
+        with open(self.log_file, "a+") as f:
+            proc = Popen(cmd, cwd=ROOT_PATH, stdout=f, stderr=STDOUT, universal_newlines=True)
+            proc.communicate()
 
     def export_designs(self):
         """Exports all specimen designs into jsons in parallel"""
