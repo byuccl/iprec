@@ -33,7 +33,7 @@ class TestCompareV(unittest.TestCase):
         self.assertTrue(actual_graph)
 
         data = {}
-        with open(TEST_RESOURCES / "aes128" / "aes128.json", "r") as f:
+        with open(TEST_RESOURCES / "aes128" / "iprec_output" / "aes128.json", "r") as f:
             data = json.load(f)
         self.assertTrue(data)
         test_graph = test_function(data)
