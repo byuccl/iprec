@@ -30,7 +30,6 @@ for i in list1:
 Familiarize yourself with the syntax here: https://stackoverflow.com/a/1859099
 """
 
-from boolean import BooleanAlgebra
 from igraph import Graph
 from itertools import zip_longest
 import re
@@ -196,22 +195,48 @@ def print_graph(graph_obj, f):
 
 ######### iGraph Comparison Functions #########
 def compare_eqn(eq1, eq2):
-    eq1 = BooleanAlgebra().parse(eq1[3:]).simplify()
-    eq2 = BooleanAlgebra().parse(eq2[3:]).simplify()
+    eq1_pin_dict = {}
+    eq2_pin_dict = {}
+    pin_name_list = ["A6", "A5", "A4", "A3", "A2", "A1"]
+    eq1_fun = eq1[3:]
+    eq2_fun = eq2_fun[3:]
 
-    return eq1 == eq2
+    if "(A6+~A6)*(" in eq1_fun:
+        eq1_fun = eq1_fun.replace("(A6+~A6)*(", "")
+        eq1_fun = eq1[:-1]
+    if "(A6+~A6)*(" in eq2_fun:
+        eq2_fun = eq2_fun.replace("(A6+~A6)*(", "")
+        eq2_fun = eq2_fun[:-1]
 
-
-def compare_ref(v1, v2):
-    """Compare two vertices' primitive references"""
-    if v1["ref"] != v2["ref"]:
+    for pin in pin_name_list:
+        eq1_fun = eq1_fun.replace(pin, "PIN")
+        eq2_fun = eq2_fun.replace(pin, "PIN")
+    if eq1_fun != eq2_fun:
         return False
 
-    if not v1["IS_PRIMITIVE"]:
+    for pin in pin_name_list:
+        eq1_pin_dict[pin] = [m.start() for m in re.finditer(pin, eq1)]
+        eq2_pin_dict[pin] = [m.start() for m in re.finditer(pin, eq2)]
+    for pin in eq1_pin_dict:
+        for pin2 in eq2_pin_dict:
+            if eq1_pin_dict[pin] == eq2_pin_dict[pin2]:
+                eq2_pin_dict.pop(pin2, None)
+                break
+        else:
+            return False
+    return True
+
+
+def compare_ref(lh_vertex, rh_vertex):
+    """Compare two vertices' primitive references"""
+    if lh_vertex["ref"] != rh_vertex["ref"]:
+        return False
+
+    if not lh_vertex["IS_PRIMITIVE"]:
         return True
 
-    props1 = v1["BEL_PROPERTIES"]
-    props2 = v2["BEL_PROPERTIES"]
+    props1 = lh_vertex["BEL_PROPERTIES"]
+    props2 = rh_vertex["BEL_PROPERTIES"]
     keys = props1.keys() & props2.keys()
     if "CONFIG.EQN" in keys:
         keys.remove["CONFIG.EQN"]
@@ -223,11 +248,10 @@ def compare_ref(v1, v2):
     return True
 
 
-def is_constant_vertex(v1):
-    return v1["ref"] in ["GND", "VCC"]
+def is_constant_vertex(lh_vertex):
+    return lh_vertex["ref"] in ["GND", "VCC"]
 
 
-# It appears that the keys are never used, except inside the get_edge_dict functions.
 def create_edge_dict(edge_list1, edge_list2):
     edge_dict = {}
     for e1, e2 in zip_longest(edge_list1, edge_list2, fillvalue={"signal": "port"}):
@@ -240,70 +264,71 @@ def create_edge_dict(edge_list1, edge_list2):
     return edge_dict
 
 
-def compare_vertex(mapping, g1, v1, g2, v2):
-    """Recurisvely compare vertices in two graphs"""
-    if is_constant_vertex(v1):
-        if compare_ref(v1, v2):
-            return mapping
-        return False
+def compare_edges(lh_edges, rh_edges, mapping, lh_design, rh_design):
+    """
+    Compare vertex edges by examinig edge properties and the connected
+    vertex.
 
-    if not compare_ref(v1, v2):
-        return False
-
-    # Check in edges
-    edge_dict = create_edge_dict(v1.in_edges(), v2.in_edges())
-    for sources in edge_dict.values():
-        src_edges1 = sources["e1"]
-        for edge_src2 in sources["e2"]:
-            if not src_edges1:  # NO MATCHING EDGES
+    lh/rh_edges  ([igraph.Edge]) - Edge list of vertices to compare
+    mapping      ({int: int})    - Current estimated matches of
+                                 verticies between the two graphs.
+                                 mapping[lh_vertex_idx] = rh_vertex_idx
+    lh/rh_design (igraph.Graph)  - Graph of design to compare
+    """
+    edge_dict = create_edge_dict(lh_edges, rh_edges)
+    for group in edge_dict.values():
+        lh_edges = group["e1"]
+        for edge_rh in group["e2"]:
+            if not lh_edges:  # NO MATCHING EDGES
                 return False
-            elif len(src_edges1) == 1:  # ONLY ONE MATCHING EDGE
-                edge_src1 = src_edges1[0]
-                if edge_src1 in mapping:
-                    if mapping[edge_src1] != edge_src2:
+            elif len(lh_edges) == 1:  # ONLY ONE MATCHING EDGE
+                edge_lh = lh_edges[0]
+                if edge_lh in mapping:
+                    if mapping[edge_lh] != edge_rh:
                         return False
-                    src_edges1.remove(edge_src1)
+                    lh_edges.remove(edge_lh)
                     continue
-                if edge_src2 in mapping.values():
+                if edge_rh in mapping.values():
                     return False
 
                 tmp_map = compare_vertex(
-                    dict(mapping).update({edge_src1: edge_src2}),
-                    g1,
-                    g1.vs[edge_src1],
-                    g2,
-                    g2.vs[edge_src2],
+                    dict(mapping).update({edge_lh: edge_rh}),
+                    lh_design,
+                    lh_design.vs[edge_lh],
+                    rh_design,
+                    rh_design.vs[edge_rh],
                 )
                 if not tmp_map:
                     return False
 
                 mapping = tmp_map
-                src_edges1.remove(edge_src1)
+                lh_edges.remove(edge_lh)
             else:  # MULTIPLE MATCHING EDGES
                 possible_matches = []
                 possible_maps = []
-                for edge_src1 in src_edges1:
-                    if edge_src1 in mapping:
-                        if mapping[edge_src1] == edge_src2:
-                            possible_matches.append(edge_src1)
-                            src_edges1.remove(edge_src1)
-                            break
-                        continue
+                for edge_lh in lh_edges:
+                    if edge_lh in mapping:
+                        if mapping[edge_lh] != edge_rh:
+                            continue
+                        possible_matches.append(edge_lh)
+                        lh_edges.remove(edge_lh)
+                        break
 
-                    if edge_src2 in mapping.values():
+                    if edge_rh in mapping.values():
                         continue
 
                     tmp_map = compare_vertex(
-                        dict(mapping).update({edge_src1: edge_src2}),
-                        g1,
-                        g1.vs[edge_src1],
-                        g2,
-                        g2.vs[edge_src2],
+                        dict(mapping).update({edge_lh: edge_rh}),
+                        lh_design,
+                        lh_design.vs[edge_lh],
+                        rh_design,
+                        rh_design.vs[edge_rh],
                     )
 
                     if tmp_map:
-                        possible_matches.append(edge_src1)
-                        possible_maps.append((edge_src1, edge_src2, tmp_map))
+                        lh_edges.remove(edge_lh)
+                        possible_matches.append(edge_lh)
+                        possible_maps.append((edge_lh, edge_rh, tmp_map))
                         mapping = possible_maps[0][2]
                         break
 
@@ -316,75 +341,32 @@ def compare_vertex(mapping, g1, v1, g2, v2):
                         # IF MULTIPLE MATCH, PICK THE FIRST ONE FOR NOW, MAY NEED A "SWAP PORTS" METHOD
                         mapping = possible_maps[0][2]
                         # TODO: If we always pick the first match why keep looking for matches?
-
-    # Check out edges
-    edge_dict = create_edge_dict(v1.out_edges(), v2.out_edges())
-    for destinations in edge_dict.values():
-        dest_edges1 = destinations["e1"]
-        for e2_dest in destinations["e2"]:
-            if not dest_edges1:  # NO MATCHING EDGES
-                return False
-            elif len(dest_edges1) == 1:  # ONLY ONE MATCHING EDGE
-                e1_dest = dest_edges1[0]
-                if e1_dest in mapping:
-                    if mapping[e1_dest] != e2_dest:
-                        return False
-                    dest_edges1.remove(e1_dest)
-                    continue
-
-                if e2_dest in mapping.values():
-                    return False
-
-                tmp_map = compare_vertex(
-                    dict(mapping).update({e1_dest: e2_dest}),
-                    g1,
-                    g1.vs[e1_dest],
-                    g2,
-                    g2.vs[e2_dest],
-                )
-                if not tmp_map:
-                    return False
-
-                mapping = tmp_map
-                dest_edges1.remove(e1_dest)
-
-            else:  # MULTIPLE MATCHING EDGES
-                possible_matches = []
-                possible_maps = []
-                for e1_dest in dest_edges1:
-                    if e1_dest in mapping:
-                        if mapping[e1_dest] != e2_dest:
-                            continue
-                        else:
-                            dest_edges1.remove(e1_dest)
-                            possible_matches.append(e1_dest)
-                            break
-
-                    if e2_dest in mapping.values():
-                        continue
-
-                    tmp_map = compare_vertex(
-                        dict(mapping).update({e1_dest: e2_dest}),
-                        g1,
-                        g1.vs[e1_dest],
-                        g2,
-                        g2.vs[e2_dest],
-                    )
-
-                    if tmp_map:
-                        dest_edges1.remove(e1_dest)  # this is not done in the in-edge iteration
-                        possible_matches.append(e1_dest)
-                        possible_maps.append((e1_dest, e2_dest, tmp_map))
-                        mapping = possible_maps[0][2]
-                        break
-
-                else:
-                    if len(possible_matches) == 0:
-                        return False
-                    elif len(possible_matches) == 1:
-                        mapping = possible_maps[0][2]
-                    else:
-                        # IF MULTIPLE MATCH, PICK THE FIRST ONE FOR NOW, MAY NEED A "SWAP PORTS" METHOD
-                        mapping = possible_maps[0][2]
-
     return mapping
+
+
+def compare_vertex(mapping, lh_design, lh_vertex, rh_design, rh_vertex):
+    """
+    Recurisvely map vertices in two graphs, stemming from lh/rh vertex.
+
+    mapping      ({int: int})    - Current estimated matches of
+                                 verticies between the two graphs.
+                                 mapping[lh_vertex_idx] = rh_vertex_idx
+    lh/rh_design (igraph.Graph)  - Graph of designs to compare.
+    lh/rh_vertex (igraph.Vertex) - Verticies to stem comparison from.
+    """
+
+    if is_constant_vertex(lh_vertex):
+        if compare_ref(lh_vertex, rh_vertex):
+            return mapping
+        return False
+
+    if not compare_ref(lh_vertex, rh_vertex):
+        return False
+
+    # Check in edges
+    if not compare_edges(lh_vertex.in_edges(), rh_vertex.in_edges(), mapping, lh_design, rh_design):
+        return False
+    # Check out edges
+    return compare_edges(
+        lh_vertex.out_edges(), rh_vertex.out_edges(), mapping, lh_design, rh_design
+    )
