@@ -41,7 +41,7 @@ greedy_method = 1
 ip = args.ip
 file_name = args.file_name[0]
 templates = {}
-prim_count = 0
+prim_count = 0  # not used
 mapped_list = []
 used_list = {}
 
