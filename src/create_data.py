@@ -70,22 +70,22 @@ class DataGenerator:
             print("Running first time IP Property Dictionary Generation")
             with open(self.launch_file_name, "w", buffering=1) as self.launch_file:
 	            self.source_fuzzer_file(self.launch_file)
-	            self.init_design()
+	            self.init_design(self.launch_file)
 	            self.launch_file.write("get_prop_dict $ip\n")
             self.run_tcl_script(self.launch_file_name)
         with open(ROOT_PATH / "data" / self.ip / "properties.json") as f:
             self.ip_dict = json.load(f)
 
-    def randomize_props(self):
+    def randomize_props(self, stream):
         """Randomize each parameter in the IP core"""
 
         for x in self.ip_dict["PROPERTY"]:
             if x["type"] == "ENUM":
                 val = random.choice(x["values"])
-                self.set_property(x["name"], val)
+                self.set_property(x["name"], val, stream)
             elif not self.ignore_integer:
                 val = random.randrange(x["min"], x["max"], self.integer_step)
-                self.set_property(x["name"], str(val))
+                self.set_property(x["name"], str(val), stream)
 
     def fuzz_ip(self):
         """Main fuzzer"""
@@ -98,9 +98,8 @@ class DataGenerator:
 
 	        # Generate with random properties
 	        for i in range(1, self.random_count):
-	            self.source_fuzzer_file(self.launch_file)
 	            self.init_design(self.launch_file)
-	            self.randomize_props()
+	            self.randomize_props(self.launch_file)
 	            self.gen_design(i, self.launch_file)
 
         self.run_tcl_script(self.launch_file_name)

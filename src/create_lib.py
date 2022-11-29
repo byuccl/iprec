@@ -24,6 +24,7 @@ import json
 import shutil
 import sys
 from multiprocessing import Pool
+from itertools import cycle
 from pathlib import Path
 from subprocess import Popen, STDOUT, PIPE
 from igraph import Graph
@@ -287,36 +288,39 @@ class LibraryGenerator:
         with open(self.graphs_dir / cell / f"{version}.txt", "w") as f:
             print_graph(graph_obj, f)
 
-    def record_core(self, design_f):
+    def launch(self):
         """Runs the export design from a .dcp of"""
-        tcl_arg = str(self.data_dir / design_f).replace(".dcp", "")
         cmd = [
             "vivado",
             "-notrace",
             "-mode",
-            "batch",
+            "tcl",
             "-source",
             str(RECORD_CORE_TCL),
-            "-tclarg",
-            tcl_arg,
-            "0",
             "-stack",
             "2000",
             "-nolog",
             "-nojournal",
         ]
-        with open(self.log_file, "a+") as f:
-            proc = Popen(cmd, cwd=ROOT_PATH, stdout=f, stderr=STDOUT, universal_newlines=True)
-            proc.communicate()
+        return Popen(cmd, stdin=PIPE, cwd=ROOT_PATH, universal_newlines=True)
 
     def export_designs(self):
         """Exports all specimen designs into jsons in parallel"""
         file_list = [x for x in self.data_dir.iterdir() if x.name.endswith(".dcp")]
-        if len(file_list) == 1:
-            self.record_core(file_list[0])
-        else:
-            with Pool(processes=8) as pool:
-                pool.map(self.record_core, file_list)
+        processes = [self.launch() for _ in range(8)]
+        pool = cycle(processes)
+        for f in file_list:
+            process = next(pool)
+            process.stdin.write(f"open_checkpoint {self.data_dir / f}\n")
+            process.stdin.write(f"set json [open {str((self.data_dir / f)).replace('.dcp', '.json')} w]\n")
+            process.stdin.write(f"record_core $json\n")
+            process.stdin.write(f"close $json\n")
+            process.stdin.write(f"close_design\n")
+        for process in processes:
+            process.stdin.write(f"exit\n")
+            process.stdin.close()
+        for process in processes:
+            process.wait()
 
 
 def main():
