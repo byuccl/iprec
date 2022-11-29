@@ -5,12 +5,11 @@ Tests for either/or functionality and against the results of the
 functions in commit 586bf1bc1dd94739c3c9f663d7da89253b8ee930.
 """
 
-from igraph import Graph
 import json
-from subprocess import Popen, STDOUT, PIPE
 import unittest
+from igraph import Graph
 
-from config import ROOT_PATH, TEST_RESOURCES, RECORD_CORE_TCL
+from config import TEST_RESOURCES
 from compare_v import import_design
 from compare_v_refactor import import_design as import_design_refactor
 from compare_v_refactor import print_graph
@@ -41,7 +40,9 @@ class TestCompareV(unittest.TestCase):
             flat=False,
         )
 
-    def test_import_design(self, test_function=import_design, data={}, actual_graph=None, **kwargs):
+    def test_import_design(
+        self, test_function=import_design, data=None, actual_graph=None, **kwargs
+    ):
         """
         Test import design against design imported from previous commit.
         """
@@ -50,7 +51,7 @@ class TestCompareV(unittest.TestCase):
                 actual_graph = Graph.Read_Pickle(f)
         self.assertTrue(actual_graph)
 
-        if not data:
+        if data is None:
             with open(IPREC_OUTPUT / "aes128_flat.json", "r") as f:
                 data = json.load(f)
         self.assertTrue(data)
@@ -116,7 +117,7 @@ class TestCompareV(unittest.TestCase):
                             continue
                         break
                 else:
-                    self.assertTrue(False, msg=f"No match for edge {test_edge} in baseline")
+                    raise AssertionError(f"No match for edge {test_edge} in baseline")
                 if actual_edge is not None:
                     actual_edges.remove(actual_edge)
 
@@ -135,7 +136,10 @@ class TestCompareV(unittest.TestCase):
     def test_compare_vertex(self):
         pass
 
-    def test_print_graph(self):
+    def test_print_graph_refactor(self):
+        """
+        Test compare_v_refactor.print_graph against compare_v.print_graph
+        """
         g = None
         with open(IPREC_OUTPUT / "aes128.pkl", "rb") as f:
             g = Graph.Read_Pickle(f)
@@ -151,9 +155,8 @@ class TestCompareV(unittest.TestCase):
                     actual_line = actual_line.strip()
                     self.assertTrue(test_line == actual_line, msg=f"Line {i + 1} mismatch")
                 self.assertTrue(
-                    f.readline() == f_actual.readline(), msg=f"Files are of different lengths"
+                    f.readline() == f_actual.readline(), msg="Files are of different lengths"
                 )
-        pass
 
 
 if __name__ == "__main__":
