@@ -35,14 +35,15 @@ def import_design(design):
         g.vs[i]["label"] = x.split("/")[-1]
         g.vs[i]["name"] = x
         if cells[x]["IS_PRIMITIVE"] == 1:
-            g.vs[i]["IS_PRIMITIVE"] = 1
+            g.vs[i]["IS_PRIMITIVE"] = True
             g.vs[i]["color"] = "orange"
             g.vs[i]["ref"] = cells[x]["REF_NAME"]
             g.vs[i]["BEL_PROPERTIES"] = cells[x]["BEL_PROPERTIES"]
         else:
-            g.vs[i]["IS_PRIMITIVE"] = 0
+            g.vs[i]["IS_PRIMITIVE"] = False
             g.vs[i]["color"] = "green"
-            g.vs[i]["ref"] = cells[x]["ORIG_REF_NAME"]
+            orig_ref = cells[x]["ORIG_REF_NAME"]
+            g.vs[i]["ref"] = orig_ref if orig_ref else cells[x]["REF_NAME"]
             g.vs[i]["CELL_PROPERTIES"] = cells[x]["CELL_PROPERTIES"]
         if "CELL_NAME" in cells[x]:
             g.vs[i]["CELL_NAME"] = cells[x]["CELL_NAME"]
