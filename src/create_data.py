@@ -68,13 +68,12 @@ class DataGenerator:
         """Get Properties for configurable IP"""
         if not (ROOT_PATH / "data" / self.ip / "properties.json").exists():
             print("Running first time IP Property Dictionary Generation")
-            self.launch_file = open(self.launch_file_name, "w", buffering=1)
-            self.source_fuzzer_file()
-            self.init_design()
-            print("get_prop_dict $ip", file=self.launch_file)
-            self.launch_file.close()
+            with open(self.launch_file_name, "w", buffering=1) as self.launch_file:
+	            self.source_fuzzer_file(self.launch_file)
+	            self.init_design()
+	            self.launch_file.write("get_prop_dict $ip\n")
             self.run_tcl_script(self.launch_file_name)
-        with open("data/" + self.ip + "/properties.json") as f:
+        with open(ROOT_PATH / "data" / self.ip / "properties.json") as f:
             self.ip_dict = json.load(f)
 
     def randomize_props(self):
@@ -90,37 +89,36 @@ class DataGenerator:
 
     def fuzz_ip(self):
         """Main fuzzer"""
-        self.launch_file = open(self.launch_file_name, "w", buffering=1)
+        with open(self.launch_file_name, "w", buffering=1) as self.launch_file:
 
-        # Generate one with all default properties
-        self.source_fuzzer_file()
-        self.init_design()
-        self.gen_design(1)
+	        # Generate one with all default properties
+	        self.source_fuzzer_file(self.launch_file)
+	        self.init_design(self.launch_file)
+	        self.gen_design(1,self.launch_file)
 
-        # Generate with random properties
-        for i in range(1, self.random_count):
-            self.source_fuzzer_file()
-            self.init_design()
-            self.randomize_props()
-            self.gen_design(i)
+	        # Generate with random properties
+	        for i in range(1, self.random_count):
+	            self.source_fuzzer_file(self.launch_file)
+	            self.init_design(self.launch_file)
+	            self.randomize_props()
+	            self.gen_design(i, self.launch_file)
 
-        self.launch_file.close()
         self.run_tcl_script(self.launch_file_name)
 
     # TCL command wrapper functions
 
-    def source_fuzzer_file(self):
-        print(f"source {CORE_FUZZER_TCL} -notrace", file=self.launch_file)
+    def source_fuzzer_file(self, stream):
+        stream.write(f"source {CORE_FUZZER_TCL} -notrace\n")
 
-    def init_design(self):
-        print(f"set ip {self.ip}", file=self.launch_file)
-        print(f"create_design $ip {self.part_name}", file=self.launch_file)
+    def init_design(self, stream):
+        stream.write(f"set ip {self.ip}\n")
+        stream.write(f"create_design $ip {self.part_name}\n")
 
-    def set_property(self, prop, value):
-        print(f"set_ip_property {prop} {value}", file=self.launch_file)
+    def set_property(self, prop, value, stream):
+        stream.write(f"set_ip_property {prop} {value}\n")
 
-    def gen_design(self, name):
-        print(f"synth {name} $ip", file=self.launch_file)
+    def gen_design(self, name, stream):
+        stream.write(f"synth {name} $ip\n")
 
     def run_tcl_script(self, tcl_file):
         """Start subproccess to run selected tcl script"""
@@ -137,7 +135,7 @@ class DataGenerator:
             "-nojournal",
         ]
         with open(self.log_file, "a+") as f:
-            proc = Popen(cmd, cwd=ROOT_PATH, stdout=f, stderr=STDOUT, universal_newlines=True)
+            proc = Popen(cmd, cwd=ROOT_PATH, universal_newlines=True)
             proc.communicate()
 
 
