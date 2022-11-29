@@ -8,12 +8,14 @@ functions in commit 586bf1bc1dd94739c3c9f663d7da89253b8ee930.
 from igraph import Graph
 import json
 from subprocess import Popen, STDOUT, PIPE
-import sys
 import unittest
 
 from config import ROOT_PATH, TEST_RESOURCES, RECORD_CORE_TCL
 from compare_v import import_design
 from compare_v_refactor import import_design as import_design_refactor
+from compare_v_refactor import print_graph
+
+IPREC_OUTPUT = TEST_RESOURCES / "aes128" / "iprec_output"
 
 
 class TestCompareV(unittest.TestCase):
@@ -27,10 +29,10 @@ class TestCompareV(unittest.TestCase):
     def test_import_design_refactor(self):
         self.test_import_design(test_function=import_design_refactor, flat=True)  # type:ignore
         data = {}
-        with open(TEST_RESOURCES / "aes128" / "iprec_output" / "aes128.json", "r") as f:
+        with open(IPREC_OUTPUT / "aes128.json", "r") as f:
             data = json.load(f)
         actual_graph = None
-        with open(TEST_RESOURCES / "aes128" / "iprec_output" / "aes128.pkl", "rb") as f:
+        with open(IPREC_OUTPUT / "aes128.pkl", "rb") as f:
             actual_graph = Graph.Read_Pickle(f)
         self.test_import_design(
             test_function=import_design_refactor,  # type:ignore
@@ -44,12 +46,12 @@ class TestCompareV(unittest.TestCase):
         Test import design against design imported from previous commit.
         """
         if actual_graph is None:
-            with open(TEST_RESOURCES / "aes128" / "iprec_output" / "aes128_flat.pkl", "rb") as f:
+            with open(IPREC_OUTPUT / "aes128_flat.pkl", "rb") as f:
                 actual_graph = Graph.Read_Pickle(f)
         self.assertTrue(actual_graph)
 
         if not data:
-            with open(TEST_RESOURCES / "aes128" / "iprec_output" / "aes128_flat.json", "r") as f:
+            with open(IPREC_OUTPUT / "aes128_flat.json", "r") as f:
                 data = json.load(f)
         self.assertTrue(data)
         test_graph = test_function(data, **kwargs)
@@ -134,6 +136,23 @@ class TestCompareV(unittest.TestCase):
         pass
 
     def test_print_graph(self):
+        g = None
+        with open(IPREC_OUTPUT / "aes128.pkl", "rb") as f:
+            g = Graph.Read_Pickle(f)
+        self.assertTrue(g)
+
+        with open(TEST_RESOURCES / "aes128_graph.txt", "w") as f:
+            print_graph(g, f)
+
+        with open(TEST_RESOURCES / "aes128_graph.txt", "r") as f:
+            with open(IPREC_OUTPUT / "aes128_graph.txt", "r") as f_actual:
+                for i, (test_line, actual_line) in enumerate(zip(f, f_actual)):
+                    test_line = test_line.strip()
+                    actual_line = actual_line.strip()
+                    self.assertTrue(test_line == actual_line, msg=f"Line {i + 1} mismatch")
+                self.assertTrue(
+                    f.readline() == f_actual.readline(), msg=f"Files are of different lengths"
+                )
         pass
 
 
