@@ -75,6 +75,7 @@ class TestCompareV(unittest.TestCase):
             )
             actual_edges = actual_vertex.all_edges()
             for test_edge in test_vertex.all_edges():
+                actual_edge = None
                 for actual_edge in actual_edges:
                     if (
                         actual_edge.source_vertex["name"] == (test_edge.source_vertex["name"])
@@ -89,8 +90,9 @@ class TestCompareV(unittest.TestCase):
                             continue
                         break
                 else:
-                    assertTrue(False, msg=f"No match for edge {test_edge} in baseline")
-                actual_edges.remove(actual_edge)
+                    self.assertTrue(False, msg=f"No match for edge {test_edge} in baseline")
+                if actual_edge is not None:
+                    actual_edges.remove(actual_edge)
 
     def test_compare_eqn(self):
         pass
