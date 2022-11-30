@@ -26,6 +26,7 @@ This script takes in a selected IP Core then:
 
 import argparse
 from datetime import datetime
+from itertools import cycle
 import json
 import random
 from subprocess import Popen, PIPE, STDOUT
@@ -89,20 +90,27 @@ class DataGenerator:
 
     def fuzz_ip(self):
         """Main fuzzer"""
-        with open(self.launch_file_name, "w", buffering=1) as self.launch_file:
+        processes = [self.launch(str(x)) for x in range(8)]
+        for process in processes:
+            process.stdin.write(f"set ip {self.ip}\n")
+        pool = cycle(processes)
+        process = next(pool)
+        # Generate one with all default properties
+        self.init_design(process.stdin)
+        self.gen_design(1,process.stdin)
 
-	        # Generate one with all default properties
-	        self.source_fuzzer_file(self.launch_file)
-	        self.init_design(self.launch_file)
-	        self.gen_design(1,self.launch_file)
+        # Generate with random properties
+        for i in range(1, self.random_count):
+            process = next(pool)
+            self.init_design(process.stdin)
+            self.randomize_props(process.stdin)
+            self.gen_design(i, process.stdin)
 
-	        # Generate with random properties
-	        for i in range(1, self.random_count):
-	            self.init_design(self.launch_file)
-	            self.randomize_props(self.launch_file)
-	            self.gen_design(i, self.launch_file)
-
-        self.run_tcl_script(self.launch_file_name)
+        for process in processes:
+            process.stdin.write(f"exit\n")
+            process.stdin.close()
+        for process in processes:
+            process.wait()
 
     # TCL command wrapper functions
 
@@ -110,7 +118,6 @@ class DataGenerator:
         stream.write(f"source {CORE_FUZZER_TCL} -notrace\n")
 
     def init_design(self, stream):
-        stream.write(f"set ip {self.ip}\n")
         stream.write(f"create_design $ip {self.part_name}\n")
 
     def set_property(self, prop, value, stream):
@@ -118,6 +125,34 @@ class DataGenerator:
 
     def gen_design(self, name, stream):
         stream.write(f"synth {name} $ip\n")
+
+    def launch(self, x):
+        """Runs the export design from a .dcp of"""
+        (ROOT_PATH/x).mkdir(exist_ok=True)
+        cmd = [
+            "vivado",
+            "-notrace",
+            "-mode",
+            "tcl",
+            "-source",
+            str(CORE_FUZZER_TCL),
+            "-stack",
+            "2000",
+            "-nolog",
+            "-nojournal",
+        ]
+
+        return Popen(cmd, stdin=PIPE, cwd=(ROOT_PATH/x), universal_newlines=True)
+
+    def run(self):
+        """Start subproccess to run vivado"""
+        file_list = [x for x in self.data_dir.iterdir() if x.name.endswith(".dcp")]
+        for f in file_list:
+            process.stdin.write(f"open_checkpoint {self.data_dir / f}\n")
+            process.stdin.write(f"set json [open {str((self.data_dir / f)).replace('.dcp', '.json')} w]\n")
+            process.stdin.write(f"record_core $json\n")
+            process.stdin.write(f"close $json\n")
+            process.stdin.write(f"close_design\n")
 
     def run_tcl_script(self, tcl_file):
         """Start subproccess to run selected tcl script"""
