@@ -35,14 +35,15 @@ def import_design(design):
         g.vs[i]["label"] = x.split("/")[-1]
         g.vs[i]["name"] = x
         if cells[x]["IS_PRIMITIVE"] == 1:
-            g.vs[i]["IS_PRIMITIVE"] = 1
+            g.vs[i]["IS_PRIMITIVE"] = True
             g.vs[i]["color"] = "orange"
             g.vs[i]["ref"] = cells[x]["REF_NAME"]
             g.vs[i]["BEL_PROPERTIES"] = cells[x]["BEL_PROPERTIES"]
         else:
-            g.vs[i]["IS_PRIMITIVE"] = 0
+            g.vs[i]["IS_PRIMITIVE"] = False
             g.vs[i]["color"] = "green"
-            g.vs[i]["ref"] = cells[x]["ORIG_REF_NAME"]
+            orig_ref = cells[x]["ORIG_REF_NAME"]
+            g.vs[i]["ref"] = orig_ref if orig_ref else cells[x]["REF_NAME"]
             g.vs[i]["CELL_PROPERTIES"] = cells[x]["CELL_PROPERTIES"]
         if "CELL_NAME" in cells[x]:
             g.vs[i]["CELL_NAME"] = cells[x]["CELL_NAME"]
@@ -92,10 +93,7 @@ def import_design(design):
                                 pin_idx = g.vs.select(name=pin[0])
                                 if len(pin_idx) == 1:
                                     pin_idx = pin_idx[0].index
-                                    if (
-                                        driver_bool == "LEAF.1"
-                                        and leaf_bool == "LEAF.1"
-                                    ):
+                                    if driver_bool == "LEAF.1" and leaf_bool == "LEAF.1":
                                         edge_type = driver_type
                                     else:
                                         edge_type = "port"
@@ -186,10 +184,7 @@ def compare_ref(v1, v2):
                     # print("===============")
                     # print(v1["BEL_PROPERTIES"][P])
                     # print(v2["BEL_PROPERTIES"][P])
-                    if (
-                        compare_eqn(v1["BEL_PROPERTIES"][P], v2["BEL_PROPERTIES"][P])
-                        == 0
-                    ):
+                    if compare_eqn(v1["BEL_PROPERTIES"][P], v2["BEL_PROPERTIES"][P]) == 0:
                         # print("FAILED EQN",v1["BEL_PROPERTIES"][P],v2["BEL_PROPERTIES"][P])
                         return 0
                     # else:
@@ -249,9 +244,7 @@ def compare_vertex(mapping, g1, v1, g2, v2, depth, verbose):
     depth = depth + 2
     if verbose:
         if v1["CELL_NAME"].split("/")[-1] != v2["name"]:
-            print(
-                "\n", "\t" * depth, "COMPARING VERTEX: NOT EQUAL!:", v1.index, v2.index
-            )
+            print("\n", "\t" * depth, "COMPARING VERTEX: NOT EQUAL!:", v1.index, v2.index)
         else:
             print("\n", "\t" * depth, "COMPARING VERTEX:", v1.index, v2.index)
         print("\t" * depth, "\t", v1["CELL_NAME"])
@@ -324,9 +317,7 @@ def compare_vertex(mapping, g1, v1, g2, v2, depth, verbose):
                                 print("\t" * depth, "\t\tSOURCE NOT MAPPED")
                             if e2_source in mapping.values():
                                 if verbose:
-                                    print(
-                                        "\t" * depth, "\t\tSOURCE ALREADY HAS A MATCH"
-                                    )
+                                    print("\t" * depth, "\t\tSOURCE ALREADY HAS A MATCH")
                                 continue
                             mapping[e1_source] = e2_source
                             tmp_map = compare_vertex(
@@ -340,6 +331,7 @@ def compare_vertex(mapping, g1, v1, g2, v2, depth, verbose):
                             )
                             mapping.pop(e1_source, None)
                             if tmp_map != 0:
+                                edge_dict[k]["e1"].remove(e1_source)
                                 possible_matches.append(e1_source)
                                 list_maps.append((e1_source, e2_source, tmp_map))
                                 mapping = list_maps[0][2]
@@ -403,9 +395,7 @@ def compare_vertex(mapping, g1, v1, g2, v2, depth, verbose):
                         if verbose:
                             print("\t" * depth, "\t\tTARGET NOT MAPPED")
                         if e2_target in mapping.values():
-                            key_val = list(mapping.keys())[
-                                list(mapping.values()).index(e2_target)
-                            ]
+                            key_val = list(mapping.keys())[list(mapping.values()).index(e2_target)]
                             if verbose:
                                 print("\t" * depth, "\t\tRET 2")
                             return 0
@@ -457,9 +447,7 @@ def compare_vertex(mapping, g1, v1, g2, v2, depth, verbose):
                                 print("\t" * depth, "\t\tTARGET NOT MAPPED")
                             if e2_target in mapping.values():
                                 if verbose:
-                                    print(
-                                        "\t" * depth, "\t\tTARGET ALREADY HAS A MATCH"
-                                    )
+                                    print("\t" * depth, "\t\tTARGET ALREADY HAS A MATCH")
                                 continue
                             mapping[e1_target] = e2_target
                             tmp_map = compare_vertex(
