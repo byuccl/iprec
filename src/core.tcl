@@ -18,20 +18,19 @@
     # There is also an option to keep hierarchy (record_core), or flatten all of the hierarchy (record_flat_core)
 
 # This function is used in create_data.py that will export the IP core design into a JSON file to be imported into iGraph
-proc record_core {file_name} {
-    open_checkpoint -quiet "$file_name.dcp"
-    set f [open "$file_name.json" w]
+# Should take an open output file, and expects a checkpoint to be open.
+proc record_core {out} {
     set i 0
-    puts $f "\{\"NETS\":\{"
+    puts $out "\{\"NETS\":\{"
     # Record all the of Nets properties, which needs:
         # Which Hier. Cell pins it is connected to
         # Which Leaf Cell pins it is connected to
         # Which pin is the driver
     foreach N [get_nets -segments -hierarchical] {
-        if {$i} { puts $f ","}
+        if {$i} { puts $out ","}
         incr i
         set net_parent [get_property PARENT_CELl $N]
-        puts $f "\"$N\":\{"
+        puts $out "\"$N\":\{"
         set driver [all_fanin -to $N]
         if {[llength $driver] >= 1} {
             set pins [get_pins -of_objects $N -filter "DIRECTION==OUT"]
@@ -47,32 +46,32 @@ proc record_core {file_name} {
             set driver [get_pins -of_objects $N -filter "DIRECTION==OUT"]
         }
 
-        puts $f "\"PARENT\":\"$net_parent\"\,"
-        puts $f "\"DRIVER\":\"$driver\"\,"
+        puts $out "\"PARENT\":\"$net_parent\"\,"
+        puts $out "\"DRIVER\":\"$driver\"\,"
         foreach bool [list 0 1] {
-            puts $f "\"LEAF.$bool\":\{"
-            puts $f "\"OUTPUTS\":\["
+            puts $out "\"LEAF.$bool\":\{"
+            puts $out "\"OUTPUTS\":\["
             set j 0
             foreach P [get_pins -of_objects $N -filter "DIRECTION==OUT && IS_LEAF==$bool"] {
-                if {$j} { puts $f ","}
+                if {$j} { puts $out ","}
                 incr j
-                puts $f "\"$P\""
+                puts $out "\"$P\""
             }
             set j 0
-            puts $f "\],\"INPUTS\":\["
+            puts $out "\],\"INPUTS\":\["
             foreach P [get_pins -of_objects $N -filter "DIRECTION==IN && IS_LEAF==$bool"] {
-                if {$j} { puts $f ","}
+                if {$j} { puts $out ","}
                 incr j
-                puts $f "\"$P\""
+                puts $out "\"$P\""
             }
-            puts $f "\]"
-            puts $f "\}"
-            if {$bool == 0} { puts $f ","}
+            puts $out "\]"
+            puts $out "\}"
+            if {$bool == 0} { puts $out ","}
         }
-        puts $f "\}"
+        puts $out "\}"
     }
 
-    puts $f "\},\"CELLS\":\{"
+    puts $out "\},\"CELLS\":\{"
     # Records the current state of all of the Cell's in the design, which includes:
         # The type of cell it is (ref name)
         # The parent cell
@@ -84,34 +83,34 @@ proc record_core {file_name} {
     }
     set i 0
     foreach C $cell_list {
-        if {$i} { puts $f ","}
-        puts $f "\"$C\":\{"
+        if {$i} { puts $out ","}
+        puts $out "\"$C\":\{"
         incr i
     
         set ref_name [get_property REF_NAME $C]
         set parent [get_property PARENT $C]
         set prim_count [get_property PRIMITIVE_COUNT $C]
         set is_prim [get_property IS_PRIMITIVE $C]
-        puts $f "\"REF_NAME\":\"$ref_name\","
-        puts $f "\"PARENT\":\"$parent\","
-        puts $f "\"PRIM_COUNT\":$prim_count,"
-        puts $f "\"IS_PRIMITIVE\":$is_prim"
+        puts $out "\"REF_NAME\":\"$ref_name\","
+        puts $out "\"PARENT\":\"$parent\","
+        puts $out "\"PRIM_COUNT\":$prim_count,"
+        puts $out "\"IS_PRIMITIVE\":$is_prim"
         if {$is_prim == 0} {
             set orig_ref_name [get_property ORIG_REF_NAME $C]
-            puts $f ",\"ORIG_REF_NAME\":\"$orig_ref_name\""
-            puts $f ",\"CELL_PROPERTIES\":\{"
+            puts $out ",\"ORIG_REF_NAME\":\"$orig_ref_name\""
+            puts $out ",\"CELL_PROPERTIES\":\{"
             set j 0
             foreach P [list_property $C -regexp "\[cC\]_.*"] {
                 set val [get_property $P $C]
                 if {$val != ""} {
-                    if {$j} { puts $f ","}
-                    puts $f "\"$P\":\"$val\""
+                    if {$j} { puts $out ","}
+                    puts $out "\"$P\":\"$val\""
                     incr j
                 }
             }
-            puts $f "\}"
+            puts $out "\}"
         } else {
-            puts $f ",\"BEL_PROPERTIES\":\{"
+            puts $out ",\"BEL_PROPERTIES\":\{"
             set B [get_bels -of_objects $C]
             set j 0
             if { $B != ""} {
@@ -124,8 +123,8 @@ proc record_core {file_name} {
                             if {[string first "CONFIG." $P] == -1} { continue }
                             if {[string first ".VALUES" $P] != -1} { continue }
                             set val [get_property $P $b]
-                            if {$j} { puts $f ","}
-                            puts $f "\"$bel_name.$P\":\"$val\""
+                            if {$j} { puts $out ","}
+                            puts $out "\"$bel_name.$P\":\"$val\""
                             incr j
                         }
                     }
@@ -134,29 +133,26 @@ proc record_core {file_name} {
                         if {[string first "CONFIG." $P] == -1} { continue }
                         if {[string first ".VALUES" $P] != -1} { continue }
                         set val [get_property $P $B]
-                        if {$j} { puts $f ","}
-                        puts $f "\"$P\":\"$val\""
+                        if {$j} { puts $out ","}
+                        puts $out "\"$P\":\"$val\""
                         incr j
                     }
                 }
             }
-            puts $f "\}"
+            puts $out "\}"
         }
-        puts $f "\}"
+        puts $out "\}"
     }
-    puts $f "\}\}"
-    close $f
+    puts $out "\}\}"
 }
 
 # Records a benchmark design into a flat JSON file structure used for importing it into an iGraph
     # This is used in the search_lib.py script to export the input design into iGraph to be searched
-proc record_flat_core {file_name} {
+proc record_flat_core {out} {
     puts "FLATTENING DCP"
-    open_checkpoint "$file_name.dcp"
-    set f [open "$file_name.json" w]
     set i 0
     set count 0
-    puts $f "\{\"CELLS\":\{"
+    puts $out "\{\"CELLS\":\{"
     # Records the current state of all of the leaf Cells, which needs:
         # What type of cell it is (ref_name)
         # What BEL it is mapped to
@@ -170,18 +166,18 @@ proc record_flat_core {file_name} {
         } else {
            set name "$loc.$bel" 
         }
-        if {$i} { puts $f ","}
+        if {$i} { puts $out ","}
         incr i
-        puts $f "\"$name\":\{"
-        puts $f "\"CELL_NAME\":\"$C\"," 
+        puts $out "\"$name\":\{"
+        puts $out "\"CELL_NAME\":\"$C\"," 
         set parent ""
         set prim_count ""
         set is_prim [get_property IS_PRIMITIVE $C]
-        puts $f "\"REF_NAME\":\"$ref_name\","
-        puts $f "\"PARENT\":\"$parent\","
-        puts $f "\"PRIM_COUNT\":1,"
-        puts $f "\"IS_PRIMITIVE\":$is_prim"
-        puts $f ",\"BEL_PROPERTIES\":\{"
+        puts $out "\"REF_NAME\":\"$ref_name\","
+        puts $out "\"PARENT\":\"$parent\","
+        puts $out "\"PRIM_COUNT\":1,"
+        puts $out "\"IS_PRIMITIVE\":$is_prim"
+        puts $out ",\"BEL_PROPERTIES\":\{"
         set B [get_bels -of_objects $C]
         set j 0
         if { $B != ""} { 
@@ -190,17 +186,17 @@ proc record_flat_core {file_name} {
                     if {[string first "CONFIG." $P] == -1} { continue }
                     if {[string first ".VALUES" $P] != -1} { continue }
                     set val [get_property $P $B]
-                    if {$j} { puts $f ","}
-                    puts $f "\"$P\":\"$val\""
+                    if {$j} { puts $out ","}
+                    puts $out "\"$P\":\"$val\""
                     incr j
                 }
             }
         }
-        puts $f "\}"
-        puts $f "\}"
+        puts $out "\}"
+        puts $out "\}"
     }
-    puts $f "\}"
-    puts $f ",\"NETS\":\{"
+    puts $out "\}"
+    puts $out ",\"NETS\":\{"
     # Record all the of Nets properties, which needs:
         # Which Leaf Cell pins it is connected to
     set i 0
@@ -208,17 +204,17 @@ proc record_flat_core {file_name} {
     foreach N [get_nets -hierarchical -segments -top_net_of_hierarchical_group ] {
         set parent ""
         set net_parent ""
-        if {$i} { puts $f ","}
-        puts $f "\"$count\":\{"
+        if {$i} { puts $out ","}
+        puts $out "\"$count\":\{"
         incr i
         incr count
         set f1 0
         set driver [all_fanin -to $N]
-        puts $f "\"PARENT\":\"$net_parent\"\,"
-        puts $f "\"DRIVER\":\"FLAT_DESIGN\"\,"
+        puts $out "\"PARENT\":\"$net_parent\"\,"
+        puts $out "\"DRIVER\":\"FLAT_DESIGN\"\,"
         set bool 0
-        puts $f "\"LEAF.$bool\":\{"
-        puts $f "\"OUTPUTS\":\["
+        puts $out "\"LEAF.$bool\":\{"
+        puts $out "\"OUTPUTS\":\["
         set j 0
         foreach P [get_pins -leaf -of_objects $N -filter "DIRECTION==OUT"] {
             set C [get_cells -of_objects $P]
@@ -231,13 +227,13 @@ proc record_flat_core {file_name} {
             } else {
                 set name "$loc.$bel" 
             }
-            if {$j} { puts $f ","}
-            puts $f "\"$name/$p_name\""
+            if {$j} { puts $out ","}
+            puts $out "\"$name/$p_name\""
             incr j
         }
 
         set j 0
-        puts $f "\],\"INPUTS\":\["
+        puts $out "\],\"INPUTS\":\["
         foreach P [get_pins -leaf -of_objects $N -filter "DIRECTION==IN"] {
             set C [get_cells -of_objects $P]
             set ref_name [get_property REF_NAME $C]
@@ -249,33 +245,27 @@ proc record_flat_core {file_name} {
             } else {
                 set name "$loc.$bel" 
             }
-            if {$j} { puts $f ","}
-            puts $f "\"$name/$p_name\""
+            if {$j} { puts $out ","}
+            puts $out "\"$name/$p_name\""
             incr j
         }
-        puts $f "\]"
-        puts $f "\},"
+        puts $out "\]"
+        puts $out "\},"
 
         # Empty leaf 1
-        puts $f "\"LEAF.1\":\{"
-        puts $f "\"OUTPUTS\":\["
-        puts $f "\],\"INPUTS\":\["
-        puts $f "\]"
-        puts $f "\}"
+        puts $out "\"LEAF.1\":\{"
+        puts $out "\"OUTPUTS\":\["
+        puts $out "\],\"INPUTS\":\["
+        puts $out "\]"
+        puts $out "\}"
 
         # End json
-        puts $f "\}"
+        puts $out "\}"
     }
-    puts $f "\}\}"
-    close $f
+    puts $out "\}\}"
 }
 
 # Command line arguments to flatten or keep hierarchy of the dcp
 set_msg_config -id {Vivado 12-508} -limit 0
 set_msg_config -id {Common 17-346} -limit 0
 set_msg_config -severity INFO -limit 0
-if {[lindex $argv 1] == 0} {
-    record_core [lindex $argv 0] 
-} else {
-    record_flat_core [lindex $argv 0] 
-}

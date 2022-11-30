@@ -95,13 +95,13 @@ proc get_prop_dict { ip} {
 proc synth {name ip} {
     set C [get_ips]
 	set f [synth_ip $C]
-    if {[catch {file rename -force $f "data/$ip/$name.dcp"}] == 0} {
+    if {[catch {file rename -force $f "../data/$ip/$name.dcp"}] == 0} {
         close_project
-        open_checkpoint "data/$ip/$name.dcp"
+        open_checkpoint "../data/$ip/$name.dcp"
         opt_design
         catch { place_design }
         catch { route_design }
-        write_checkpoint "data/$ip/$name.dcp" -force
+        write_checkpoint "../data/$ip/$name.dcp" -force
     }
     close_project
 }
@@ -109,10 +109,10 @@ proc synth {name ip} {
 
 # Creates a project with the single instance of the IP
 proc create_design { ip part} {
-    file mkdir "data"
-    file mkdir "data/$ip"
+    file mkdir "../data"
+    file mkdir "../data/$ip"
     set_part $part -quiet
-    create_ip -vlnv $ip -module_name c_accum_0
+    create_ip -vlnv $ip -module_name ip_0
 }
 
 # Sets the IP cell's property to the given value (has to be the only IP in the design)
