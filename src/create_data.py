@@ -69,11 +69,14 @@ class DataGenerator:
         """Get Properties for configurable IP"""
         if not (ROOT_PATH / "data" / self.ip / "properties.json").exists():
             print("Running first time IP Property Dictionary Generation")
-            with open(self.launch_file_name, "w", buffering=1) as self.launch_file:
-	            self.source_fuzzer_file(self.launch_file)
-	            self.init_design(self.launch_file)
-	            self.launch_file.write("get_prop_dict $ip\n")
-            self.run_tcl_script(self.launch_file_name)
+            process = self.launch('0')
+            process.stdin.write(f"set ip {self.ip}\n");
+            self.source_fuzzer_file(process.stdin)
+            self.init_design(process.stdin)
+            process.stdin.write("get_prop_dict $ip\n")
+            process.stdin.write("exit\n")
+            process.stdin.close()
+            process.wait()
         with open(ROOT_PATH / "data" / self.ip / "properties.json") as f:
             self.ip_dict = json.load(f)
 
