@@ -17,12 +17,12 @@
 # given an IP block design cell, it returns a json dictionary of every property, with the possible values each property can hold
 proc get_prop_dict { ip} {
     set C [get_ips]
-    set f [open "data/$ip/props.txt" w]
+    set f [open "../data/$ip/props.txt" w]
     set accum [dict create]
     foreach P [list_property $C -regexp "CONFIG.*"] {
         puts $P
-        catch {[set_property -dict [list $P {12300} ]  $C > "data/$ip/out.txt" ]}
-        set fp [open "data/$ip/out.txt" r]
+        catch {[set_property -dict [list $P {12300} ]  $C > "../data/$ip/out.txt" ]}
+        set fp [open "../data/$ip/out.txt" r]
         set file_data [read $fp]
         set data [split $file_data "\n"]
         foreach line $data {
@@ -54,9 +54,9 @@ proc get_prop_dict { ip} {
     puts $accum
     close $f
 
-    file delete -force "data/$ip/out.txt"
-    file delete -force "data/$ip/props.txt"
-    set f [open "data/$ip/properties.json" w]
+    file delete -force "../data/$ip/out.txt"
+    file delete -force "../data/$ip/props.txt"
+    set f [open "../data/$ip/properties.json" w]
     puts $f "\{\"PROPERTY\": \["
     set i 0
     dict for {property values} $accum {
