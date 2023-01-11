@@ -27,7 +27,7 @@ import sys
 from igraph import *
 from compare_v import *
 from multiprocessing import Pool
-from config import LIB_DIR
+from config import LIB_DIR, ROOT_PATH
 
 # This script takes in a design (.dcp file) and an IP core name and searches for the IP core within the design
 
@@ -636,7 +636,7 @@ def print_all_cells(g, g_template, mapping):
 def import_dcp(filename):
     json = filename.replace(".dcp", ".json")
     os.system(
-        f"script -q -c 'vivado -mode batch -stack 2000 -source core.tcl -source record_flat_core.tcl -tclarg {filename} {json}'"
+        f"script -q -c 'vivado -mode batch -stack 2000 -source {ROOT_PATH}/src/core.tcl -source {ROOT_PATH}/src/record_flat_core.tcl -tclarg {filename} {json}'"
     )
 
 
