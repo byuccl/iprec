@@ -17,12 +17,12 @@
 # given an IP block design cell, it returns a json dictionary of every property, with the possible values each property can hold
 proc get_prop_dict { ip} {
     set C [get_ips]
-    set f [open "data/$ip/props.txt" w]
+    set f [open "../data/$ip/props.txt" w]
     set accum [dict create]
     foreach P [list_property $C -regexp "CONFIG.*"] {
         puts $P
-        catch {[set_property -dict [list $P {12300} ]  $C > "data/$ip/out.txt" ]}
-        set fp [open "data/$ip/out.txt" r]
+        catch {[set_property -dict [list $P {12300} ]  $C > "../data/$ip/out.txt" ]}
+        set fp [open "../data/$ip/out.txt" r]
         set file_data [read $fp]
         set data [split $file_data "\n"]
         foreach line $data {
@@ -54,9 +54,9 @@ proc get_prop_dict { ip} {
     puts $accum
     close $f
 
-    file delete -force "data/$ip/out.txt"
-    file delete -force "data/$ip/props.txt"
-    set f [open "data/$ip/properties.json" w]
+    file delete -force "../data/$ip/out.txt"
+    file delete -force "../data/$ip/props.txt"
+    set f [open "../data/$ip/properties.json" w]
     puts $f "\{\"PROPERTY\": \["
     set i 0
     dict for {property values} $accum {
@@ -95,13 +95,13 @@ proc get_prop_dict { ip} {
 proc synth {name ip} {
     set C [get_ips]
 	set f [synth_ip $C]
-    if {[catch {file rename -force $f "data/$ip/$name.dcp"}] == 0} {
+    if {[catch {file rename -force $f "../data/$ip/$name.dcp"}] == 0} {
         close_project
-        open_checkpoint "data/$ip/$name.dcp"
+        open_checkpoint "../data/$ip/$name.dcp"
         opt_design
         catch { place_design }
         catch { route_design }
-        write_checkpoint "data/$ip/$name.dcp" -force
+        write_checkpoint "../data/$ip/$name.dcp" -force
     }
     close_project
 }
@@ -109,10 +109,10 @@ proc synth {name ip} {
 
 # Creates a project with the single instance of the IP
 proc create_design { ip part} {
-    file mkdir "data"
-    file mkdir "data/$ip"
+    file mkdir "../data"
+    file mkdir "../data/$ip"
     set_part $part -quiet
-    create_ip -vlnv $ip -module_name c_accum_0
+    create_ip -vlnv $ip -module_name ip_0
 }
 
 # Sets the IP cell's property to the given value (has to be the only IP in the design)

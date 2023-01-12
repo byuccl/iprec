@@ -46,7 +46,7 @@ def run_flow(ip, count=100, part="xc7a100ticsg324-1L", design=None, force=False)
             DataGenerator(ip=ip, part=part, random_count=count)
         LibraryGenerator(ip=ip)
     if design:
-        os.system("python search_lib.py " + design + " --ip=" + ip)
+        os.system(f"python {ROOT_PATH}/src/search_lib.py {design} --ip={ip}")
 
 
 def run():

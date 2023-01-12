@@ -27,7 +27,7 @@ import sys
 from igraph import *
 from compare_v import *
 from multiprocessing import Pool
-from config import LIB_DIR
+from config import LIB_DIR, ROOT_PATH
 
 # This script takes in a design (.dcp file) and an IP core name and searches for the IP core within the design
 
@@ -633,10 +633,10 @@ def print_all_cells(g, g_template, mapping):
     print("PERCENTAGE CORRECT:", percentage)
 
 
-def import_dcp(file_name):
-    dcp = file_name.replace(".dcp", "")
+def import_dcp(filename):
+    json = filename.replace(".dcp", ".json")
     os.system(
-        f"script -q -c 'vivado -mode batch -source record_core.tcl -tclarg {dcp} 1 -stack 2000'"
+        f"script -q -c 'vivado -mode batch -stack 2000 -source {ROOT_PATH}/src/core.tcl -source {ROOT_PATH}/src/record_flat_core.tcl -tclarg {filename} {json}'"
     )
 
 
@@ -646,7 +646,7 @@ def find(ip, filename):
         import_dcp(filename)
         filename = filename.replace(".dcp", ".json")
 
-    fj = open(LIB_DIR + ip + "templates.json")
+    fj = open(LIB_DIR / ip / "templates.json")
     tmp = json.load(fj)
     templates = tmp["templates"]
     used_list = tmp["used"]
