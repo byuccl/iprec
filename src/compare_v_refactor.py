@@ -30,9 +30,30 @@ for i in list1:
 Familiarize yourself with the syntax here: https://stackoverflow.com/a/1859099
 """
 
-from igraph import Graph
 from itertools import zip_longest
 import re
+from igraph import Graph
+
+
+LUT_IN_PIN_NAMES = ["A6", "A5", "A4", "A3", "A2", "A1"]
+
+
+def convert_lut_eqn(eqn):
+    """Analyze lut equation and return a dictionary of pin locations"""
+    eq1 = eqn[3:]
+    eq1_pin_dict = {}
+
+    if "(A6+~A6)*(" in eq1:
+        eq1 = eq1[10:-1]
+
+    eq1_tmp = ""
+    for pin in LUT_IN_PIN_NAMES:
+        eq1_tmp = eq1.replace(pin, "PIN")
+
+    for pin in LUT_IN_PIN_NAMES:
+        eq1_pin_dict[pin] = [m.start() for m in re.finditer(pin, eq1)]
+
+    return (eq1_tmp, eq1_pin_dict)
 
 
 ######### TCL Generated JSON to iGraph #########
@@ -56,6 +77,13 @@ def import_design(design, flat):
         if c_info["IS_PRIMITIVE"] == 1:
             vertex["color"] = "orange"
             vertex["ref"] = c_info["REF_NAME"]
+            if "CONFIG.EQN" in c_info["BEL_PROPERTIES"]:
+                base_eqn, eqn_pin_dict = convert_lut_eqn(c_info["BEL_PROPERTIES"].pop("CONFIG.EQN"))
+                vertex["CONFIG.EQN"] = base_eqn
+                vertex["EQN_PIN_DICT"] = eqn_pin_dict
+            else:
+                vertex["CONFIG.EQN"] = ""
+                vertex["EQN_PIN_DICT"] = {}
             vertex["BEL_PROPERTIES"] = c_info["BEL_PROPERTIES"]
         else:
             vertex["color"] = "green"
@@ -70,9 +98,15 @@ def import_design(design, flat):
             vertex["color"] = "blue"
 
     if flat:
-        return create_edges_flat(g, design["NETS"])
+        g = create_edges_flat(g, design["NETS"])
+    else:
+        create_edges_hier(g, design["NETS"])
 
-    return create_edges_hier(g, design["NETS"])
+    for e in g.es.select(signal="port"):
+        e.source_vertex["output_vertex"] = True
+        e.target_vertex["input_vertex"] = True
+
+    return g
 
 
 def create_edges_flat(g, nets):
@@ -194,32 +228,16 @@ def print_graph(graph_obj, f):
 
 
 ######### iGraph Comparison Functions #########
-def compare_eqn(eq1, eq2):
-    eq1_pin_dict = {}
-    eq2_pin_dict = {}
-    pin_name_list = ["A6", "A5", "A4", "A3", "A2", "A1"]
-    eq1_fun = eq1[3:]
-    eq2_fun = eq2_fun[3:]
-
-    if "(A6+~A6)*(" in eq1_fun:
-        eq1_fun = eq1_fun.replace("(A6+~A6)*(", "")
-        eq1_fun = eq1[:-1]
-    if "(A6+~A6)*(" in eq2_fun:
-        eq2_fun = eq2_fun.replace("(A6+~A6)*(", "")
-        eq2_fun = eq2_fun[:-1]
-
-    for pin in pin_name_list:
-        eq1_fun = eq1_fun.replace(pin, "PIN")
-        eq2_fun = eq2_fun.replace(pin, "PIN")
-    if eq1_fun != eq2_fun:
+def compare_eqn(v1, v2):
+    eq1 = v1["CONFIG.EQN"]
+    eq2 = v2["CONFIG.EQN"]
+    if eq1 != eq2:
         return False
-
-    for pin in pin_name_list:
-        eq1_pin_dict[pin] = [m.start() for m in re.finditer(pin, eq1)]
-        eq2_pin_dict[pin] = [m.start() for m in re.finditer(pin, eq2)]
-    for pin in eq1_pin_dict:
-        for pin2 in eq2_pin_dict:
-            if eq1_pin_dict[pin] == eq2_pin_dict[pin2]:
+    eq1_pin_dict = v1["EQN_PIN_DICT"]
+    eq2_pin_dict = dict(v2["EQN_PIN_DICT"])
+    for pin1_eq in eq1_pin_dict.values():
+        for pin2, pin2_eq in eq2_pin_dict:
+            if pin1_eq == pin2_eq:
                 eq2_pin_dict.pop(pin2, None)
                 break
         else:
@@ -235,13 +253,13 @@ def compare_ref(lh_vertex, rh_vertex):
     if not lh_vertex["IS_PRIMITIVE"]:
         return True
 
+    if lh_vertex["CONFIG.EQN"]:
+        if not compare_eqn(lh_vertex, rh_vertex):
+            return False
+
     props1 = lh_vertex["BEL_PROPERTIES"]
     props2 = rh_vertex["BEL_PROPERTIES"]
     keys = props1.keys() & props2.keys()
-    if "CONFIG.EQN" in keys:
-        keys.remove["CONFIG.EQN"]
-        if not compare_eqn(props1["CONFIG.EQN"], props2["CONFIG.EQN"]):
-            return False
     for prop in keys:
         if props1[prop] != props2[prop]:
             return False
@@ -355,18 +373,27 @@ def compare_vertex(mapping, lh_design, lh_vertex, rh_design, rh_vertex):
     lh/rh_vertex (igraph.Vertex) - Verticies to stem comparison from.
     """
 
-    if is_constant_vertex(lh_vertex):
-        if compare_ref(lh_vertex, rh_vertex):
-            return mapping
-        return False
-
     if not compare_ref(lh_vertex, rh_vertex):
         return False
 
+    if is_constant_vertex(lh_vertex):
+        return mapping
+
     # Check in edges
-    if not compare_edges(lh_vertex.in_edges(), rh_vertex.in_edges(), mapping, lh_design, rh_design):
-        return False
+    if (
+        lh_vertex.attributes().get("input_vertex") is None
+        and rh_vertex.attributes().get("input_vertex") is None
+    ):
+        if not compare_edges(
+            lh_vertex.in_edges(), rh_vertex.in_edges(), mapping, lh_design, rh_design
+        ):
+            return False
     # Check out edges
-    return compare_edges(
-        lh_vertex.out_edges(), rh_vertex.out_edges(), mapping, lh_design, rh_design
-    )
+    if (
+        lh_vertex.attributes().get("output_vertex") is None
+        and rh_vertex.attributes().get("output_vertex") is None
+    ):
+        return compare_edges(
+            lh_vertex.out_edges(), rh_vertex.out_edges(), mapping, lh_design, rh_design
+        )
+    return True
