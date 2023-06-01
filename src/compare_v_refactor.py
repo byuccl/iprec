@@ -30,10 +30,30 @@ for i in list1:
 Familiarize yourself with the syntax here: https://stackoverflow.com/a/1859099
 """
 
-from boolean import BooleanAlgebra
-from igraph import Graph
 from itertools import zip_longest
 import re
+from igraph import Graph
+
+
+LUT_IN_PIN_NAMES = ["A6", "A5", "A4", "A3", "A2", "A1"]
+
+
+def convert_lut_eqn(eqn):
+    """Analyze lut equation and return a dictionary of pin locations"""
+    eq1 = eqn[3:]
+    eq1_pin_dict = {}
+
+    if "(A6+~A6)*(" in eq1:
+        eq1 = eq1[10:-1]
+
+    eq1_tmp = ""
+    for pin in LUT_IN_PIN_NAMES:
+        eq1_tmp = eq1.replace(pin, "PIN")
+
+    for pin in LUT_IN_PIN_NAMES:
+        eq1_pin_dict[pin] = [m.start() for m in re.finditer(pin, eq1)]
+
+    return (eq1_tmp, eq1_pin_dict)
 
 
 ######### TCL Generated JSON to iGraph #########
@@ -57,6 +77,13 @@ def import_design(design, flat):
         if c_info["IS_PRIMITIVE"] == 1:
             vertex["color"] = "orange"
             vertex["ref"] = c_info["REF_NAME"]
+            if "CONFIG.EQN" in c_info["BEL_PROPERTIES"]:
+                base_eqn, eqn_pin_dict = convert_lut_eqn(c_info["BEL_PROPERTIES"].pop("CONFIG.EQN"))
+                vertex["CONFIG.EQN"] = base_eqn
+                vertex["EQN_PIN_DICT"] = eqn_pin_dict
+            else:
+                vertex["CONFIG.EQN"] = ""
+                vertex["EQN_PIN_DICT"] = {}
             vertex["BEL_PROPERTIES"] = c_info["BEL_PROPERTIES"]
         else:
             vertex["color"] = "green"
@@ -71,9 +98,15 @@ def import_design(design, flat):
             vertex["color"] = "blue"
 
     if flat:
-        return create_edges_flat(g, design["NETS"])
+        g = create_edges_flat(g, design["NETS"])
+    else:
+        create_edges_hier(g, design["NETS"])
 
-    return create_edges_hier(g, design["NETS"])
+    for e in g.es.select(signal="port"):
+        e.source_vertex["output_vertex"] = True
+        e.target_vertex["input_vertex"] = True
+
+    return g
 
 
 def create_edges_flat(g, nets):
@@ -195,45 +228,51 @@ def print_graph(graph_obj, f):
 
 
 ######### iGraph Comparison Functions #########
-def compare_eqn(eq1, eq2):
-    eq1 = BooleanAlgebra().parse(eq1[3:]).simplify()
-    eq2 = BooleanAlgebra().parse(eq2[3:]).simplify()
-
-    return eq1 == eq2
-
-
-def compare_ref(v1, v2):
-    """Compare two primitive references"""
-    if v1["ref"] != v2["ref"]:
+def compare_eqn(v1, v2):
+    eq1 = v1["CONFIG.EQN"]
+    eq2 = v2["CONFIG.EQN"]
+    if eq1 != eq2:
         return False
-
-    if not v1["IS_PRIMITIVE"]:
-        return True
-
-    for P in v1["BEL_PROPERTIES"]:
-        if (
-            P not in v2["BEL_PROPERTIES"]
-        ):  # TODO: if one vertex is missing properties is it still a match?
-            continue
-
-        if P == "CONFIG.EQN" and not compare_eqn(
-            v1["BEL_PROPERTIES"][P], v2["BEL_PROPERTIES"][P]
-        ):
-            return False
-        if v1["BEL_PROPERTIES"][P] != v2["BEL_PROPERTIES"][P]:
+    eq1_pin_dict = v1["EQN_PIN_DICT"]
+    eq2_pin_dict = dict(v2["EQN_PIN_DICT"])
+    for pin1_eq in eq1_pin_dict.values():
+        for pin2, pin2_eq in eq2_pin_dict:
+            if pin1_eq == pin2_eq:
+                eq2_pin_dict.pop(pin2, None)
+                break
+        else:
             return False
     return True
 
 
-def is_constant_vertex(v1):
-    return v1["ref"] in ["GND", "VCC"]
+def compare_ref(lh_vertex, rh_vertex):
+    """Compare two vertices' primitive references"""
+    if lh_vertex["ref"] != rh_vertex["ref"]:
+        return False
+
+    if not lh_vertex["IS_PRIMITIVE"]:
+        return True
+
+    if lh_vertex["CONFIG.EQN"]:
+        if not compare_eqn(lh_vertex, rh_vertex):
+            return False
+
+    props1 = lh_vertex["BEL_PROPERTIES"]
+    props2 = rh_vertex["BEL_PROPERTIES"]
+    keys = props1.keys() & props2.keys()
+    for prop in keys:
+        if props1[prop] != props2[prop]:
+            return False
+    return True
 
 
-def get_edge_dict_in(v1, v2):
+def is_constant_vertex(lh_vertex):
+    return lh_vertex["ref"] in ["GND", "VCC"]
+
+
+def create_edge_dict(edge_list1, edge_list2):
     edge_dict = {}
-    for e1, e2 in zip_longest(
-        v1.in_edges(), v2.in_edges(), fillvalue={"signal": "port"}
-    ):
+    for e1, e2 in zip_longest(edge_list1, edge_list2, fillvalue={"signal": "port"}):
         if e2["signal"] != "port":
             key = f'{e2["in_pin"]}.{e2["out_pin"]}.{e2["signal"]}'
             edge_dict.setdefault(key, {"e2": [], "e1": []})["e2"].append(e2.source)
@@ -243,474 +282,118 @@ def get_edge_dict_in(v1, v2):
     return edge_dict
 
 
-def get_edge_dict_out(v1, v2):
-    edge_dict = {}
-    for e1, e2 in zip_longest(
-        v1.out_edges(), v2.out_edges(), fillvalue={"signal": "port"}
+def compare_edges(lh_edges, rh_edges, mapping, lh_design, rh_design):
+    """
+    Compare vertex edges by examinig edge properties and the connected
+    vertex.
+
+    lh/rh_edges  ([igraph.Edge]) - Edge list of vertices to compare
+    mapping      ({int: int})    - Current estimated matches of
+                                 verticies between the two graphs.
+                                 mapping[lh_vertex_idx] = rh_vertex_idx
+    lh/rh_design (igraph.Graph)  - Graph of design to compare
+    """
+    edge_dict = create_edge_dict(lh_edges, rh_edges)
+    for group in edge_dict.values():
+        lh_edges = group["e1"]
+        for edge_rh in group["e2"]:
+            if not lh_edges:  # NO MATCHING EDGES
+                return False
+            elif len(lh_edges) == 1:  # ONLY ONE MATCHING EDGE
+                edge_lh = lh_edges[0]
+                if edge_lh in mapping:
+                    if mapping[edge_lh] != edge_rh:
+                        return False
+                    lh_edges.remove(edge_lh)
+                    continue
+                if edge_rh in mapping.values():
+                    return False
+
+                tmp_map = compare_vertex(
+                    dict(mapping).update({edge_lh: edge_rh}),
+                    lh_design,
+                    lh_design.vs[edge_lh],
+                    rh_design,
+                    rh_design.vs[edge_rh],
+                )
+                if not tmp_map:
+                    return False
+
+                mapping = tmp_map
+                lh_edges.remove(edge_lh)
+            else:  # MULTIPLE MATCHING EDGES
+                possible_matches = []
+                possible_maps = []
+                for edge_lh in lh_edges:
+                    if edge_lh in mapping:
+                        if mapping[edge_lh] != edge_rh:
+                            continue
+                        possible_matches.append(edge_lh)
+                        lh_edges.remove(edge_lh)
+                        break
+
+                    if edge_rh in mapping.values():
+                        continue
+
+                    tmp_map = compare_vertex(
+                        dict(mapping).update({edge_lh: edge_rh}),
+                        lh_design,
+                        lh_design.vs[edge_lh],
+                        rh_design,
+                        rh_design.vs[edge_rh],
+                    )
+
+                    if tmp_map:
+                        lh_edges.remove(edge_lh)
+                        possible_matches.append(edge_lh)
+                        possible_maps.append((edge_lh, edge_rh, tmp_map))
+                        mapping = possible_maps[0][2]
+                        break
+
+                else:
+                    if not possible_matches:
+                        return False
+                    elif len(possible_matches) == 1:
+                        mapping = possible_maps[0][2]
+                    else:
+                        # IF MULTIPLE MATCH, PICK THE FIRST ONE FOR NOW, MAY NEED A "SWAP PORTS" METHOD
+                        mapping = possible_maps[0][2]
+                        # TODO: If we always pick the first match why keep looking for matches?
+    return mapping
+
+
+def compare_vertex(mapping, lh_design, lh_vertex, rh_design, rh_vertex):
+    """
+    Recurisvely map vertices in two graphs, stemming from lh/rh vertex.
+
+    mapping      ({int: int})    - Current estimated matches of
+                                 verticies between the two graphs.
+                                 mapping[lh_vertex_idx] = rh_vertex_idx
+    lh/rh_design (igraph.Graph)  - Graph of designs to compare.
+    lh/rh_vertex (igraph.Vertex) - Verticies to stem comparison from.
+    """
+
+    if not compare_ref(lh_vertex, rh_vertex):
+        return False
+
+    if is_constant_vertex(lh_vertex):
+        return mapping
+
+    # Check in edges
+    if (
+        lh_vertex.attributes().get("input_vertex") is None
+        and rh_vertex.attributes().get("input_vertex") is None
     ):
-        if e2["signal"] != "port":
-            key = f'{e2["in_pin"]}.{e2["out_pin"]}.{e2["signal"]}'
-            edge_dict.setdefault(key, {"e2": [], "e1": []})["e2"].append(e2.target)
-        if e1["signal"] != "port":
-            key = f'{e1["in_pin"]}.{e1["out_pin"]}.{e1["signal"]}'
-            edge_dict.setdefault(key, {"e2": [], "e1": []})["e1"].append(e1.target)
-    return edge_dict
-
-
-def compare_vertex(mapping, g1, v1, g2, v2):
-    """Recurisvely compare vertices in two graphs"""
-    if is_constant_vertex(v1):
-        if compare_ref(v1, v2):
-            return mapping
-        return False
-
-    if not compare_ref(v1, v2):
-        return False
-
-    # FOR EVERY SOURCE IN VERTEX
-    edge_dict = get_edge_dict_in(v1, v2)
-    for k, sources in edge_dict.items():
-        for e2_src in sources["e2"]:
-            es1 = sources["e1"]
-            if len(es1) == 0:  # NO MATCHING EDGES
-                return False
-            elif len(es1) == 1:  # ONLY ONE MATCHING EDGE
-                e1_src = es1[0]
-                if e1_src not in mapping:
-                    if e2_src in mapping.values():
-                        return False
-                    mapping[e1_src] = e2_src
-                    tmp_map = compare_vertex(
-                        dict(mapping), g1, g1.vs[e1_src], g2, g2.vs[e2_src]
-                    )
-                    if not tmp_map:
-                        mapping.pop(e1_src, None)
-                        return False
-                    else:
-                        es1.remove(e1_src)
-                        mapping = tmp_map
-                else:
-                    if mapping[e1_src] != e2_src:
-                        return False
-                    else:
-                        es1.remove(e1_src)  # TODO: investigate logic here
-            else:  # MULTIPLE MATCHING EDGES
-                possible_matches = []
-                list_maps = []
-                for e1_src in es1:
-                    if e1_src not in mapping:
-                        if e2_src in mapping.values():
-                            continue
-                        mapping[e1_src] = e2_src
-                        tmp_map = compare_vertex(
-                            dict(mapping), g1, g1.vs[e1_src], g2, g2.vs[e2_src]
-                        )
-                        mapping.pop(e1_src, None)
-                        if tmp_map != 0:
-                            possible_matches.append(e1_src)
-                            list_maps.append((e1_src, e2_src, tmp_map))
-                            mapping = list_maps[0][2]
-                            break
-                    else:
-                        if mapping[e1_src] != e2_src:
-                            pass  # used to be just a print statement here
-                        else:
-                            possible_matches.append(e1_src)
-                            es1.remove(e1_src)
-                            break
-                else:
-                    if not len(possible_matches):
-                        return False
-                    elif len(possible_matches) == 1:
-                        mapping = list_maps[0][2]
-                    else:
-                        # IF MULTIPLE MATCH, PICK THE FIRST ONE FOR NOW, MAY NEED A "SWAP PORTS" METHOD
-                        mapping = list_maps[0][2]
-
-    edge_dict = get_edge_dict_out(v1, v2)
-    # OUTPUTS
-    for k in edge_dict:
-        for e2_target in edge_dict[k]["e2"]:
-            es1 = edge_dict[k]["e1"]
-            if len(es1) == 0:  # NO MATCHING EDGES
-                return False
-            elif len(es1) == 1:  # ONLY ONE MATCHING EDGE
-                e1_target = es1[0]
-                if e1_target not in mapping:
-                    if e2_target in mapping.values():
-                        return False
-                    mapping[e1_target] = e2_target
-                    tmp_map = compare_vertex(
-                        dict(mapping), g1, g1.vs[e1_target], g2, g2.vs[e2_target]
-                    )
-                    if tmp_map == 0:
-                        mapping.pop(e1_target, None)
-                        return False
-                    else:
-                        edge_dict[k]["e1"].remove(e1_target)
-                        mapping = tmp_map
-                else:
-                    if mapping[e1_target] != e2_target:
-                        return False
-                    else:
-                        edge_dict[k]["e1"].remove(e1_target)
-            else:  # MULTIPLE MATCHING EDGES
-                possible_matches = []
-                list_maps = []
-                for e1_target in es1:
-                    if e1_target not in mapping:
-                        if e2_target in mapping.values():
-                            continue
-                        mapping[e1_target] = e2_target
-                        tmp_map = compare_vertex(
-                            dict(mapping), g1, g1.vs[e1_target], g2, g2.vs[e2_target]
-                        )
-                        # list_maps.append((e1_target,e2_target,tmp_map))
-                        mapping.pop(e1_target, None)
-                        if tmp_map != 0:
-                            edge_dict[k]["e1"].remove(e1_target)
-                            possible_matches.append(e1_target)
-                            list_maps.append((e1_target, e2_target, tmp_map))
-                            mapping = list_maps[0][2]
-                            break
-                    else:
-                        if mapping[e1_target] != e2_target:
-                            pass  # used to be just a print statement here
-                        else:
-                            edge_dict[k]["e1"].remove(e1_target)
-                            possible_matches.append(e1_target)
-                            break
-
-                else:
-                    if len(possible_matches) == 0:
-                        return False
-                    elif len(possible_matches) == 1:
-                        mapping = list_maps[0][2]
-                    else:
-                        # IF MULTIPLE MATCH, PICK THE FIRST ONE FOR NOW, MAY NEED A "SWAP PORTS" METHOD
-                        mapping = list_maps[0][2]
-
-    return mapping
-
-
-######### Old Functions #########
-def compare_vertex_verbose(mapping, g1, v1, g2, v2, depth, verbose):
-    verbose = True
-    depth = depth + 2
-    if verbose:
-        if v1["CELL_NAME"].split("/")[-1] != v2["name"]:
-            print(
-                "\n", "\t" * depth, "COMPARING VERTEX: NOT EQUAL!:", v1.index, v2.index
-            )
-        else:
-            print("\n", "\t" * depth, "COMPARING VERTEX:", v1.index, v2.index)
-        print("\t" * depth, "\t", v1["CELL_NAME"])
-        print("\t" * depth, "\t", v2["name"])
-
-    if is_constant_vertex(v1):
-        if verbose:
-            print("\t" * depth, "\tIS CONST SOURCE")
-        if compare_ref(v1, v2):
-            return mapping
-        else:
+        if not compare_edges(
+            lh_vertex.in_edges(), rh_vertex.in_edges(), mapping, lh_design, rh_design
+        ):
             return False
-
-    if compare_ref(v1, v2):
-        if verbose:
-            print("\t" * depth, "\tCELLS ARE THE SAME")
-        # FOR EVERY SOURCE IN VERTEX
-        edge_dict = get_edge_dict_in(v1, v2)
-        if verbose:
-            print("\t" * depth, "\t\tEDGES:", edge_dict)
-        for k in edge_dict:
-            for e2_src in edge_dict[k]["e2"]:
-                es1 = edge_dict[k]["e1"]
-                if len(es1) == 0:  # NO MATCHING EDGES
-                    if verbose:
-                        print("\t" * depth, "\t\tNO MATCHING EDGES", es1, e2_src, k)
-                    return False
-                elif len(es1) == 1:  # ONLY ONE MATCHING EDGE
-                    e1_src = es1[0]
-                    if e1_src not in mapping:
-                        if verbose:
-                            print("\t" * depth, "\t\tSOURCE NOT MAPPED")
-                        if e2_src in mapping.values():
-                            if verbose:
-                                print("\t" * depth, "\t\tSOURCE ALREADY HAS A MATCH")
-                            return False
-                        mapping[e1_src] = e2_src
-                        tmp_map = compare_vertex_verbose(
-                            dict(mapping),
-                            g1,
-                            g1.vs[e1_src],
-                            g2,
-                            g2.vs[e2_src],
-                            depth,
-                            verbose,
-                        )
-                        if tmp_map == 0:
-                            mapping.pop(e1_src, None)
-                            return False
-                        else:
-                            edge_dict[k]["e1"].remove(e1_src)
-                            mapping = tmp_map
-                    else:
-                        if verbose:
-                            print("\t" * depth, "\t\tSOURCE IS MAPPED")
-                        if mapping[e1_src] != e2_src:
-                            if verbose:
-                                print("\t" * depth, "\t\tSOURCE MAP MISMATCH")
-                            return False
-                        else:
-                            edge_dict[k]["e1"].remove(e1_src)
-                else:  # MULTIPLE MATCHING EDGES
-                    pass_flag = 0
-                    possible_matches = []
-                    list_maps = []
-                    for e1_src in es1:
-                        # if verbose: print("\t"*depth,"\t\tTESTING INPUT EDGE:",e1)
-                        if e1_src not in mapping:
-                            if verbose:
-                                print("\t" * depth, "\t\tSOURCE NOT MAPPED")
-                            if e2_src in mapping.values():
-                                if verbose:
-                                    print(
-                                        "\t" * depth, "\t\tSOURCE ALREADY HAS A MATCH"
-                                    )
-                                continue
-                            mapping[e1_src] = e2_src
-                            tmp_map = compare_vertex_verbose(
-                                dict(mapping),
-                                g1,
-                                g1.vs[e1_src],
-                                g2,
-                                g2.vs[e2_src],
-                                depth,
-                                verbose,
-                            )
-                            mapping.pop(e1_src, None)
-                            if tmp_map != 0:
-                                possible_matches.append(e1_src)
-                                list_maps.append((e1_src, e2_src, tmp_map))
-                                mapping = list_maps[0][2]
-                                pass_flag = 1
-                                break
-                        else:
-                            if verbose:
-                                print("\t" * depth, "\t\tSOURCE IS MAPPED")
-                            if mapping[e1_src] != e2_src:
-                                if verbose:
-                                    print("\t" * depth, "\t\tSOURCE MAP MISMATCH")
-                            else:
-                                possible_matches.append(e1_src)
-                                pass_flag = 1
-                                edge_dict[k]["e1"].remove(e1_src)
-                                break
-                    if pass_flag == 0:
-                        if len(possible_matches) == 0:
-                            if verbose:
-                                print("\t" * depth, "\t\tNO SUCCESSFUL SOURCE MATCH")
-                            return False
-                        elif len(possible_matches) == 1:
-                            if verbose:
-                                print("\t" * depth, "\t\tONE SUCCESSFUL SOURCE MATCH")
-                            # mapping[possible_matches[0]] = e2.source
-                            mapping = list_maps[0][2]
-                        else:
-                            if verbose:
-                                print(
-                                    "\t" * depth,
-                                    "\t\tMULTIPLE SUCCESSFUL SOURCE MATCH",
-                                    possible_matches,
-                                    list_maps,
-                                )
-                            # IF MULTIPLE MATCH, PICK THE FIRST ONE FOR NOW, MAY NEED A "SWAP PORTS" METHOD
-                            mapping = list_maps[0][2]
-                    else:
-                        if verbose:
-                            print(
-                                "\t" * depth,
-                                "\t\tONE PRE-FOUND SUCCESSFUL SOURCE MATCH",
-                            )
-        # if verbose: print("\t"*depth,"\tMAPPING AFTER INPUTS",mapping)
-
-        edge_dict = get_edge_dict_out(v1, v2)
-        if verbose:
-            print("\t" * depth, "\t\tEDGES OUT:", edge_dict)
-        # OUTPUTS
-        for k in edge_dict:
-            if verbose:
-                print("\t" * depth, "\t\tK:", k)
-            for e2_target in edge_dict[k]["e2"]:
-                es1 = edge_dict[k]["e1"]
-                if len(es1) == 0:  # NO MATCHING EDGES
-                    if verbose:
-                        print("\t" * depth, "\t\tRET 1")
-                    return False
-                elif len(es1) == 1:  # ONLY ONE MATCHING EDGE
-                    e1_target = es1[0]
-                    if e1_target not in mapping:
-                        if verbose:
-                            print("\t" * depth, "\t\tTARGET NOT MAPPED")
-                        if e2_target in mapping.values():
-                            key_val = list(mapping.keys())[
-                                list(mapping.values()).index(e2_target)
-                            ]
-                            if verbose:
-                                print("\t" * depth, "\t\tRET 2")
-                            return False
-                        mapping[e1_target] = e2_target
-                        tmp_map = compare_vertex_verbose(
-                            dict(mapping),
-                            g1,
-                            g1.vs[e1_target],
-                            g2,
-                            g2.vs[e2_target],
-                            depth,
-                            verbose,
-                        )
-                        if tmp_map == 0:
-                            mapping.pop(e1_target, None)
-                            if verbose:
-                                print("\t" * depth, "\t\tRET 3")
-                            return False
-                        else:
-                            edge_dict[k]["e1"].remove(e1_target)
-                            mapping = tmp_map
-                    else:
-                        if verbose:
-                            print("\t" * depth, "\t\tTARGET IS MAPPED")
-                        if mapping[e1_target] != e2_target:
-                            if verbose:
-                                print("\t" * depth, "\t\tTARGET MAP MISMATCH")
-                            if verbose:
-                                print("\t" * depth, "\t\tRET 4")
-                            return False
-                        else:
-                            edge_dict[k]["e1"].remove(e1_target)
-                else:  # MULTIPLE MATCHING EDGES
-                    if verbose:
-                        print(
-                            "\t" * depth,
-                            "\t\tMULTIPLE EDGE MATCH:",
-                            v1.index,
-                            e2_target,
-                        )
-                    pass_flag = 0
-                    possible_matches = []
-                    list_maps = []
-                    for e1_target in es1:
-                        if verbose:
-                            print("\t" * depth, "\t\tTESTING OUTPUT EDGE:", e1_target)
-                        if e1_target not in mapping:
-                            if verbose:
-                                print("\t" * depth, "\t\tTARGET NOT MAPPED")
-                            if e2_target in mapping.values():
-                                if verbose:
-                                    print(
-                                        "\t" * depth, "\t\tTARGET ALREADY HAS A MATCH"
-                                    )
-                                continue
-                            mapping[e1_target] = e2_target
-                            tmp_map = compare_vertex_verbose(
-                                dict(mapping),
-                                g1,
-                                g1.vs[e1_target],
-                                g2,
-                                g2.vs[e2_target],
-                                depth,
-                                verbose,
-                            )
-                            # list_maps.append((e1_target,e2_target,tmp_map))
-                            mapping.pop(e1_target, None)
-                            if tmp_map != 0:
-                                edge_dict[k]["e1"].remove(e1_target)
-                                possible_matches.append(e1_target)
-                                list_maps.append((e1_target, e2_target, tmp_map))
-                                mapping = list_maps[0][2]
-                                pass_flag = 1
-                                break
-                        else:
-                            if verbose:
-                                print("\t" * depth, "\t\tTARGET IS MAPPED")
-                            if mapping[e1_target] != e2_target:
-                                if verbose:
-                                    print(
-                                        "\t" * depth,
-                                        "\t\tTARGET MAP MISMATCH",
-                                        e1_target,
-                                        g1.vs[e1_target]["CELL_NAME"],
-                                        mapping[e1_target],
-                                        e2_target,
-                                    )
-                                # if v1.index == 37:
-                                #    print("E2 EDGES:")
-                                #    for x in g2.vs[v2.index].out_edges():
-                                #        print("\t37EDGE:",g2.vs[x.target]["name"],x.target,x)
-                            else:
-                                edge_dict[k]["e1"].remove(e1_target)
-                                possible_matches.append(e1_target)
-                                pass_flag = 1
-                                break
-
-                    if pass_flag == 0:
-                        if len(possible_matches) == 0:
-                            if verbose:
-                                print("\t" * depth, "\t\tNO SUCCESSFUL TARGET MATCH")
-                            return False
-                        elif len(possible_matches) == 1:
-                            if verbose:
-                                print("\t" * depth, "\t\tONE SUCCESSFUL TARGET MATCH")
-                            # mapping[possible_matches[0]] = e2_target
-                            mapping = list_maps[0][2]
-                        else:
-                            if verbose:
-                                print(
-                                    "\t" * depth,
-                                    "\t\tMULTIPLE SUCCESSFUL TARGET MATCH:",
-                                    possible_matches,
-                                    list_maps,
-                                )
-                            # IF MULTIPLE MATCH, PICK THE FIRST ONE FOR NOW, MAY NEED A "SWAP PORTS" METHOD
-                            mapping = list_maps[0][2]
-                            # mapping[possible_matches[0]] = e2_target
-                            # mapping = compare_vertex(dict(mapping),g1,g1.vs[possible_matches[0]],g2,g2.vs[e2_target],depth)
-                    else:
-                        if verbose:
-                            print(
-                                "\t" * depth,
-                                "\t\tONE PRE-FOUND SUCCESSFUL TARGET MATCH",
-                            )
-        # if verbose: print("\t"*depth,"\tMAPPING AFTER OUTPUTS",mapping)
-    else:
-        if verbose:
-            print(
-                "\t" * depth,
-                "\tRETURNING:CANDIDATES ARE NOT THE SAME",
-                v1["ref"],
-                v2["ref"],
-            )
-        return False
-    return mapping
-
-
-# def visualize_graph(name, graph_obj):
-#     name = name.replace("/", ".")
-#     print("printing", name)
-#     print("Printing Graph")
-#     fj = open("library/" + ip + "/graphs/graph" + name + ".txt", "w")
-#     print_graph(graph_obj, fj)
-#     fj.close()
-#     return
-
-#     visual_style = {}
-#     out_name = "library/" + ip + "/graphs/graph_" + name + ".png"
-#     visual_style["bbox"] = (1000, 1000)
-#     visual_style["margin"] = 5
-#     visual_style["vertex_size"] = 75
-#     visual_style["vertex_label_size"] = 15
-#     visual_style["edge_curved"] = False
-#     visual_style["hovermode"] = "closest"
-#     my_layout = graph_obj.layout_sugiyama()
-#     visual_style["layout"] = my_layout
-#     plot(graph_obj, out_name, **visual_style)
+    # Check out edges
+    if (
+        lh_vertex.attributes().get("output_vertex") is None
+        and rh_vertex.attributes().get("output_vertex") is None
+    ):
+        return compare_edges(
+            lh_vertex.out_edges(), rh_vertex.out_edges(), mapping, lh_design, rh_design
+        )
+    return True

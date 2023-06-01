@@ -29,8 +29,7 @@ from datetime import datetime
 from itertools import cycle
 import json
 import random
-from subprocess import Popen, PIPE, STDOUT
-import sys
+from subprocess import Popen, PIPE
 
 from config import ROOT_PATH, DATA_DIR, LIB_DIR, CORE_FUZZER_TCL
 
@@ -69,8 +68,8 @@ class DataGenerator:
         """Get Properties for configurable IP"""
         if not (ROOT_PATH / "data" / self.ip / "properties.json").exists():
             print("Running first time IP Property Dictionary Generation")
-            process = self.launch('0')
-            process.stdin.write(f"set ip {self.ip}\n");
+            process = self.launch("0")
+            process.stdin.write(f"set ip {self.ip}\n")
             self.source_fuzzer_file(process.stdin)
             self.init_design(process.stdin)
             process.stdin.write("get_prop_dict $ip\n")
@@ -83,13 +82,17 @@ class DataGenerator:
     def randomize_props(self, stream):
         """Randomize each parameter in the IP core"""
 
+        properties = {}
         for x in self.ip_dict["PROPERTY"]:
             if x["type"] == "ENUM":
                 val = random.choice(x["values"])
                 self.set_property(x["name"], val, stream)
+                properties[x["name"]] = val
             elif not self.ignore_integer:
                 val = random.randrange(x["min"], x["max"], self.integer_step)
                 self.set_property(x["name"], str(val), stream)
+                properties[x["name"]] = str(val)
+        return properties
 
     def fuzz_ip(self):
         """Main fuzzer"""
@@ -100,23 +103,24 @@ class DataGenerator:
         process = next(pool)
         # Generate one with all default properties
         self.init_design(process.stdin)
-        self.gen_design(1,process.stdin)
+        self.gen_design(0, process.stdin)
 
         # Generate with random properties
         for i in range(1, self.random_count):
             process = next(pool)
             self.init_design(process.stdin)
-            self.randomize_props(process.stdin)
+            props = self.randomize_props(process.stdin)
             self.gen_design(i, process.stdin)
+            with open(self.data_dir / f"{i}_props.json", "w") as f:
+                json.dump(props, f, indent=4)
 
         for process in processes:
-            process.stdin.write(f"exit\n")
+            process.stdin.write("exit\n")
             process.stdin.close()
         for process in processes:
             process.wait()
 
     # TCL command wrapper functions
-
     def source_fuzzer_file(self, stream):
         stream.write(f"source {CORE_FUZZER_TCL} -notrace\n")
 
@@ -131,7 +135,7 @@ class DataGenerator:
 
     def launch(self, x):
         """Runs the export design from a .dcp of"""
-        (ROOT_PATH/x).mkdir(exist_ok=True)
+        (ROOT_PATH / x).mkdir(exist_ok=True)
         cmd = [
             "vivado",
             "-notrace",
@@ -145,17 +149,7 @@ class DataGenerator:
             "-nojournal",
         ]
 
-        return Popen(cmd, stdin=PIPE, cwd=(ROOT_PATH/x), universal_newlines=True)
-
-    def run(self):
-        """Start subproccess to run vivado"""
-        file_list = [x for x in self.data_dir.iterdir() if x.name.endswith(".dcp")]
-        for f in file_list:
-            process.stdin.write(f"open_checkpoint {self.data_dir / f}\n")
-            process.stdin.write(f"set json [open {str((self.data_dir / f)).replace('.dcp', '.json')} w]\n")
-            process.stdin.write(f"record_core $json\n")
-            process.stdin.write(f"close $json\n")
-            process.stdin.write(f"close_design\n")
+        return Popen(cmd, stdin=PIPE, cwd=(ROOT_PATH / x), universal_newlines=True)
 
     def run_tcl_script(self, tcl_file):
         """Start subproccess to run selected tcl script"""
