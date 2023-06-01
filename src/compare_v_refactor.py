@@ -213,17 +213,17 @@ def print_graph(graph_obj, f):
     """Print iGraph in readable-text format to a file"""
     print("GRAPH TOP:", file=f)
     for p in graph_obj.attributes():
-        print(f"\t{p}: {graph_obj[p]}", file=f)
+        print(f"\t{p} : {graph_obj[p]}", file=f)
 
     for v in graph_obj.vs:
         print(v.index, file=f)
         for p in v.attributes():
-            print(f"\t{p}: {v[p]}", file=f)
+            print(f"\t{p} : {v[p]}", file=f)
 
     for e in graph_obj.es():
         print(e.index, file=f)
         for p in e.attributes():
-            print(f"\t{p}: {e[p]}", file=f)
+            print(f"\t{p} : {e[p]}", file=f)
         print(f"\t{e.source} -> {e.target}", file=f)
 
 
