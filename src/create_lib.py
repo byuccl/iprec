@@ -22,11 +22,9 @@ Create graph library of hierarchal ip.
 import argparse
 import json
 import shutil
-import sys
-from multiprocessing import Pool
 from itertools import cycle
 from pathlib import Path
-from subprocess import Popen, STDOUT, PIPE
+from subprocess import Popen, PIPE
 from igraph import Graph
 
 from compare_v_refactor import compare_eqn, import_design, print_graph
@@ -58,7 +56,7 @@ class LibraryGenerator:
         self.graphs_dir = self.lib_dir / "graphs"
         self.templ_dir.mkdir(parents=True, exist_ok=True)
         self.graphs_dir.mkdir(parents=True, exist_ok=True)
-        self.export_designs()
+        # self.export_designs()
         self.create_submodules()
         self.init_templates()
 
@@ -243,10 +241,19 @@ class LibraryGenerator:
                     templates[x.name].append(y)
         for cell in sorted(cell_graphs):
             with open(self.data_dir / cell, "r") as f:
-                design = json.load(f)
-
-            g = import_design(design, flat=False)
-            self.create_templates(g, templates)
+                try:
+                    design = json.load(f)
+                except json.decoder.JSONDecodeError:
+                    print(
+                        f"{cell} file is improperly formatted - it is likely that record_core.tcl failed on this design"
+                    )
+                    continue
+            try:
+                g = import_design(design, flat=False)
+                self.create_templates(g, templates)
+            except KeyError as e:
+                print(f"{cell}")
+                raise e
 
     def init_templates(self):
         """
@@ -312,12 +319,14 @@ class LibraryGenerator:
         for f in file_list:
             process = next(pool)
             process.stdin.write(f"open_checkpoint {self.data_dir / f}\n")
-            process.stdin.write(f"set json [open {str((self.data_dir / f)).replace('.dcp', '.json')} w]\n")
-            process.stdin.write(f"record_core $json\n")
-            process.stdin.write(f"close $json\n")
-            process.stdin.write(f"close_design\n")
+            process.stdin.write(
+                f"set json [open {str((self.data_dir / f)).replace('.dcp', '.json')} w]\n"
+            )
+            process.stdin.write("record_core $json\n")
+            process.stdin.write("close $json\n")
+            process.stdin.write("close_design\n")
         for process in processes:
-            process.stdin.write(f"exit\n")
+            process.stdin.write("exit\n")
             process.stdin.close()
         for process in processes:
             process.wait()
