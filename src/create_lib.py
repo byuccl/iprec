@@ -56,7 +56,7 @@ class LibraryGenerator:
         self.graphs_dir = self.lib_dir / "graphs"
         self.templ_dir.mkdir(parents=True, exist_ok=True)
         self.graphs_dir.mkdir(parents=True, exist_ok=True)
-        # self.export_designs()
+        self.export_designs()
         self.create_submodules()
         self.init_templates()
 
