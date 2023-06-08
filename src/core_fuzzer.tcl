@@ -99,9 +99,14 @@ proc synth {name ip} {
         close_project
         open_checkpoint "../data/$ip/$name.dcp"
         opt_design
-        catch { place_design }
-        catch { route_design }
-        write_checkpoint "../data/$ip/$name.dcp" -force
+        if {[catch { place_design; route_design }] == 0} {
+            write_checkpoint "../data/$ip/$name.dcp" -force
+        }
+        else {
+            #placeholder until we have a an error file descriptor setup.
+            set err [open "../data/$ip/$name.err" w]
+            close $err
+        }
     }
     close_project
 }
