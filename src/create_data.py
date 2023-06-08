@@ -53,6 +53,8 @@ class DataGenerator:
         random.seed(datetime.now().timestamp())
 
         self.data_dir = DATA_DIR / self.ip
+        self.data_json_path = self.data_dir / "json"
+        self.data_dcp_path = self.data_dir / "dcp"
         self.lib_dir = LIB_DIR / self.ip
         self.make_dirs()
         self.get_ip_props()
@@ -60,13 +62,14 @@ class DataGenerator:
 
     # Steps up the Folder Structure
     def make_dirs(self):
-        self.lib_dir.mkdir(parents=True, exist_ok=True)
-        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.data_dcp_path.mkdir(parents=True, exist_ok=True)
+        self.data_json_path.mkdir(parents=True, exist_ok=True)
+
 
     # Executes the TCL script that creates the dictionary of parameters of the IP (in a JSON)
     def get_ip_props(self):
         """Get Properties for configurable IP"""
-        if not (ROOT_PATH / "data" / self.ip / "properties.json").exists():
+        if not (self.data_json_path / "properties.json").exists():
             print("Running first time IP Property Dictionary Generation")
             process = self.launch("0")
             process.stdin.write(f"set ip {self.ip}\n")
@@ -76,7 +79,7 @@ class DataGenerator:
             process.stdin.write("exit\n")
             process.stdin.close()
             process.wait()
-        with open(ROOT_PATH / "data" / self.ip / "properties.json") as f:
+        with open(self.data_json_path / "properties.json") as f:
             self.ip_dict = json.load(f)
 
     def randomize_props(self, stream):
@@ -111,7 +114,7 @@ class DataGenerator:
             self.init_design(process.stdin)
             props = self.randomize_props(process.stdin)
             self.gen_design(i, process.stdin)
-            with open(self.data_dir / f"{i}_props.json", "w") as f:
+            with open(self.data_json_path / f"{i}_props.json", "w") as f:
                 json.dump(props, f, indent=4)
 
         for process in processes:

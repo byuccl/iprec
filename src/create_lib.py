@@ -48,6 +48,11 @@ class LibraryGenerator:
             self.data_dir = ROOT_PATH / "data" / self.ip
             self.data_dir.mkdir(parents=True, exist_ok=True)
 
+        self.data_json_path = self.data_dir / "json"
+        self.data_dcp_path = self.data_dir / "dcp"
+        self.data_json_path.mkdir(parents=True, exist_ok=True)
+        self.data_dcp_path.mkdir(parents=True, exist_ok=True)
+
         self.lib_dir = ROOT_PATH / "library" / self.ip
         self.log_file = self.lib_dir / "vivado_log.txt"
         self.log_file.unlink(missing_ok=True)
@@ -230,8 +235,8 @@ class LibraryGenerator:
         """
         cell_graphs = [
             x.name
-            for x in self.data_dir.iterdir()
-            if ".json" in x.name and "properties" not in x.name
+            for x in self.data_json_path.iterdir()
+            if ".json" in x.name and "properties" not in x.name and "props" not in x.name
         ]
         templates = {}
         for x in self.templ_dir.iterdir():
@@ -240,7 +245,7 @@ class LibraryGenerator:
                 for y in x.iterdir():
                     templates[x.name].append(y)
         for cell in sorted(cell_graphs):
-            with open(self.data_dir / cell, "r") as f:
+            with open(self.data_json_path / cell, "r") as f:
                 try:
                     design = json.load(f)
                 except json.decoder.JSONDecodeError:
@@ -286,7 +291,7 @@ class LibraryGenerator:
                     templates[x][y]["primitive_count"] = g_template["primitive_count"]
         for x in used_list:
             used_list[x] = list(set(used_list[x]))
-        output = self.lib_dir / "templates.json"
+        output = self.data_json_path / "templates.json"
         with open(output, "w") as f:
             tmp = {"templates": templates, "used": used_list}
             json.dump(tmp, f, indent=2, sort_keys=True)
@@ -313,14 +318,14 @@ class LibraryGenerator:
 
     def export_designs(self):
         """Exports all specimen designs into jsons in parallel"""
-        file_list = [x for x in self.data_dir.iterdir() if x.name.endswith(".dcp")]
+        file_list = [x.name for x in self.data_dcp_path.iterdir() if x.name.endswith(".dcp")]
         processes = [self.launch() for _ in range(8)]
         pool = cycle(processes)
         for f in file_list:
             process = next(pool)
-            process.stdin.write(f"open_checkpoint {self.data_dir / f}\n")
+            process.stdin.write(f"open_checkpoint {self.data_dcp_path / f}\n")
             process.stdin.write(
-                f"set json [open {str((self.data_dir / f)).replace('.dcp', '.json')} w]\n"
+                f"set json [open {str((self.data_json_path / f)).replace('.dcp', '.json')} w]\n"
             )
             process.stdin.write("record_core $json\n")
             process.stdin.write("close $json\n")
