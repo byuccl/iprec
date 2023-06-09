@@ -273,7 +273,7 @@ class LibraryGenerator:
                     x = cell.name
                     y = y.name
                     templates[x][y] = {}
-                    templates[x][y]["file"] = str(self.templ_dir / x / y)
+                    templates[x][y]["file"] = f"library/{self.ip}/templates/{x}/{y}"
                     g_template = Graph.Read_Pickle(templates[x][y]["file"])
                     for template in g_template.vs.select(IS_PRIMITIVE=False, id_ne=0):
                         if template["ref"] not in used_list:
