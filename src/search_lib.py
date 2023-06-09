@@ -21,13 +21,11 @@ import os
 import argparse
 import pickle
 import igraph
-import time
 import logging
-import sys
 from igraph import *
 from compare_v import *
 from multiprocessing import Pool
-from config import LIB_DIR, ROOT_PATH
+from config import DATA_DIR, ROOT_PATH
 
 # This script takes in a design (.dcp file) and an IP core name and searches for the IP core within the design
 
@@ -646,7 +644,7 @@ def find(ip, filename):
         import_dcp(filename)
         filename = filename.replace(".dcp", ".json")
 
-    fj = open(LIB_DIR / ip / "templates.json")
+    fj = open(DATA_DIR / ip / "json" / "templates.json")
     tmp = json.load(fj)
     templates = tmp["templates"]
     used_list = tmp["used"]

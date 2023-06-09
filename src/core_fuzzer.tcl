@@ -56,7 +56,7 @@ proc get_prop_dict { ip} {
 
     file delete -force "../data/$ip/out.txt"
     file delete -force "../data/$ip/props.txt"
-    set f [open "../data/$ip/properties.json" w]
+    set f [open "../data/$ip/json/properties.json" w]
     puts $f "\{\"PROPERTY\": \["
     set i 0
     dict for {property values} $accum {
@@ -95,13 +95,13 @@ proc get_prop_dict { ip} {
 proc synth {name ip} {
     set C [get_ips]
 	set f [synth_ip $C]
-    if {[catch {file rename -force $f "../data/$ip/$name.dcp"}] == 0} {
+    if {[catch {file rename -force $f "../data/$ip/dcp/$name.dcp"}] == 0} {
         close_project
-        open_checkpoint "../data/$ip/$name.dcp"
+        open_checkpoint "../data/$ip/dcp/$name.dcp"
         opt_design
         catch { place_design }
         catch { route_design }
-        write_checkpoint "../data/$ip/$name.dcp" -force
+        write_checkpoint "../data/$ip/dcp/$name.dcp" -force
     }
     close_project
 }

@@ -17,7 +17,7 @@
 # This script opens a checkpoint file, and exports all of the design's properties into a JSON that can be parsed and imported into iGraph.
     # There is also an option to keep hierarchy (record_core), or flatten all of the hierarchy (record_flat_core)
 
-# This function is used in create_data.py that will export the IP core design into a JSON file to be imported into iGraph
+# This function is used in create_lib.py that will export the IP core design into a JSON file to be imported into iGraph
 # Should take an open output file, and expects a checkpoint to be open.
 proc record_core {out} {
     set i 0
