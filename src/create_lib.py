@@ -336,8 +336,7 @@ def main():
     parser = argparse.ArgumentParser()
     # Selects the target tile type
     parser.add_argument(
-        "--ip",
-        default="xilinx.com:ip:c_accum:12.0",
+        "ip",
         help="Name of Xilinx IP or single dcp",
     )
     args = parser.parse_args()
