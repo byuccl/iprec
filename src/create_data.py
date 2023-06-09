@@ -175,7 +175,7 @@ class DataGenerator:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ip", default="xilinx.com:ip:c_accum:12.0")
+    parser.add_argument("ip", help="Xilinx ip to fuzz")
     parser.add_argument("--part", default="xc7a100ticsg324-1L")
     parser.add_argument(
         "--ignore_integer",

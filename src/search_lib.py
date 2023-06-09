@@ -674,11 +674,12 @@ def find(ip, filename):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("filename", nargs=1)
     parser.add_argument(
-        "--ip", default="xilinx.com:ip:c_accum:12.0"
-    )  # Selects the target tile typ
-    parser.add_argument("--log", default="warning")  # Selects the target tile typ
+        "ip", 
+        help="Xilinx ip name"
+    )
+    parser.add_argument("filename", nargs=1)
+    parser.add_argument("--log", default="warning")
 
     args = parser.parse_args()
     print(args)
