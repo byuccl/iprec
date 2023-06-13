@@ -37,20 +37,55 @@ This will generate a design.json file which is the final output of the best-matc
 
 ## Run Arguments  
 ``` 
-usage: run.py [-h] [--count COUNT] [--part PART] [--design DESIGN] IP
+usage: run.py IP [-h] [--count=COUNT] [--part=PART] [--design=DESIGN]
 
 positional arguments:
   IP               Xilinx IP or DCP file of ip to scan for
 
 options:
   -h, --help       Show this help message and exit
-  --count COUNT    Number of random IP
-  --part PART      Xilinx device part
-  --design DESIGN  Design to scan for ip  
+  --count=COUNT    Number of random IP
+  --part=PART      Xilinx device part
+  --design=DESIGN  Design to scan for ip  
 ``` 
 
-When `--design` is not specified, then the library generation is run, otherwise the IP search is run.  
+When `--design` is not specified, then the library generation is run, otherwise the IP search is run.
 
+You can optionally run each step of the flow individually using the following scripts:
+
+**Fuzz IP**
+```
+usage: create_data.py IP [--part=PART] [--ignore_integer] [--integer_step=STEP] [--random_count=COUNT]
+
+positional arguments:
+  IP                    Xilinx IP to fuzz
+
+options:
+  --part=PART           Xilinx device part; default is xc7a100ticsg324-1L
+  --ignore_integer      Completely ignore integer parameters when fuzzing
+  --integer_step        Downsample the integer parameters to be only every 'STEP'
+  --random_count=COUNT  Number of random IP to generate
+```
+
+**Generate library templates**
+```
+usage: create_lib.py IP
+
+positional arguments:
+  IP                    Name of Xilinx IP or single dcp checkpoint
+```
+
+**Search for library in design**
+```
+usage: search_lib.py IP filename [--log=LEVEL]
+
+positional arguments:
+  IP                    Xilinx IP name
+  filename              The dcp file to search for the given ip library
+
+options:
+  --log=LEVEL           The level at which the logger should work; default is "warning" which is off; "info" turns the logger on.
+```
 
 ## File Structure    
 
@@ -60,18 +95,22 @@ After completing the Quick Start Guide, the following file structure will be gen
  ┣ 📂checkpoints  
  ┃ ┣ 📜checkpoint.0.graph.pkl  
  ┃ ┣ 📜checkpoint.0.mapping.pkl  
- ┃ ┣  etc..  
+ ┃ ┗ etc..  
  ┣ 📂data  
- ┃ ┣ 📂xilinx.com:ip:c_accum:12.0  
- ┃ ┃ ┣ 📜0.dcp  
- ┃ ┃ ┣ 📜0.json  
- ┃ ┃ ┣ 📜1.dcp  
- ┃ ┃ ┣ 📜1.json  
- ┃ ┃ ┣  etc..  
- ┃ ┃ ┣ 📜launch.tcl  
- ┃ ┃ ┗ 📜properties.json  
+ ┃ ┗ 📂xilinx.com:ip:c_accum:12.0  
+ ┃ ┃ ┣ 📂json  
+ ┃ ┃ ┃ ┣ 📜properties.json  
+ ┃ ┃ ┃ ┣ 📜templates.json  
+ ┃ ┃ ┃ ┣ 📜0.json  
+ ┃ ┃ ┃ ┣ 📜1.json  
+ ┃ ┃ ┃ ┗ etc...  
+ ┃ ┃ ┣ 📂dcp  
+ ┃ ┃ ┃ ┣ 📜0.dcp  
+ ┃ ┃ ┃ ┣ 📜1.dcp  
+ ┃ ┃ ┃ ┗ etc...  
+ ┃ ┃ ┗ 📜launch.tcl  
  ┣ 📂library  
- ┃ ┣ 📂xilinx.com:ip:c_accum:12.0  
+ ┃ ┗ 📂xilinx.com:ip:c_accum:12.0  
  ┃ ┃ ┣ 📂graphs  
  ┃ ┃ ┃ ┣ 📂c_accum_v12_0_14  
  ┃ ┃ ┃ ┃ ┣ 📜0.txt  
@@ -80,15 +119,14 @@ After completing the Quick Start Guide, the following file structure will be gen
  ┃ ┃ ┃ ┣ 📂c_accum_v12_0_14_fabric_legacy  
  ┃ ┃ ┃ ┃ ┣ 📜0.txt  
  ┃ ┃ ┃ ┃ ┣ 📜1.txt  
- ┃ ┃ ┣ 📂templates  
+ ┃ ┃ ┗ 📂templates  
  ┃ ┃ ┃ ┣ 📂c_accum_v12_0_14  
  ┃ ┃ ┃ ┃ ┣ 📜0.pkl  
  ┃ ┃ ┃ ┃ ┣ 📜1.pkl  
- ┃ ┃ ┃ ┣ 📂c_accum_v12_0_14_fabric_legacy  
+ ┃ ┃ ┃ ┗ 📂c_accum_v12_0_14_fabric_legacy  
  ┃ ┃ ┃ ┃ ┣ 📜0.pkl  
- ┃ ┃ ┃ ┃ ┣ 📜1.pkl  
- ┃ ┃ ┗ 📜templates.json  
- ┣ 📂src
+ ┃ ┃ ┃ ┃ ┗ 📜1.pkl   
+ ┣ 📂src \
  ┃ ┣ 📜compare_v.py  
  ┃ ┣ 📜core_fuzzer.tcl  
  ┃ ┣ 📜create_data.py  
