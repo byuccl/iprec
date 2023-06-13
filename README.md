@@ -135,8 +135,8 @@ After completing the Quick Start Guide, the following file structure will be gen
  ┃ ┣ 📜record_core.tcl  
  ┃ ┣ 📜run.py  
  ┃ ┗ 📜search_lib.py  
- ┣ 📜LICENSE
- ┣ 📜IPRec Flow.png
+ ┣ 📜LICENSE  
+ ┣ 📜IPRec Flow.png   
  ┣ 📜.gitignore  
  ┗ 📜README.md  
  
