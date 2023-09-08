@@ -291,7 +291,7 @@ class LibraryGenerator:
                     templates[x][y]["primitive_count"] = g_template["primitive_count"]
         for x in used_list:
             used_list[x] = list(set(used_list[x]))
-        output = self.data_json_path / "templates.json"
+        output = self.lib_dir / "templates.json"
         with open(output, "w") as f:
             tmp = {"templates": templates, "used": used_list}
             json.dump(tmp, f, indent=2, sort_keys=True)

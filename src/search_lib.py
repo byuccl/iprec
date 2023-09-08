@@ -29,6 +29,7 @@ from config import DATA_DIR, ROOT_PATH
 
 # This script takes in a design (.dcp file) and an IP core name and searches for the IP core within the design
 
+
 # Checks if the incoming hier template matches port definitions
 def replace_pre_check(g, v1_id, g_hier):
     v2_top = g_hier.vs[0]
@@ -296,7 +297,6 @@ def descend(g, g_template, pass_mapping, limit_vertices):
         v_hier_id_list = get_spanning_hier_cells(g_template, pass_mapping, limit_vertices)
         updated_flag = 0
         for v_hier_id in v_hier_id_list:
-
             if v_hier_id not in descend_failed_dict:
                 descend_failed_dict[v_hier_id] = []
             ref = g_template.vs.find(id=v_hier_id)["ref"]
@@ -528,7 +528,6 @@ def find_template(g, g_template, verbose, template, ver):
     biggest_map, biggest_graph = [], None
     # have span max be on a sliding scale - based off of len(templates)
     for span in templates[template][ver]["span"]:
-
         if span["size"] <= 5:
             has_complex_prim = 0
             for x in span["indices"]:
@@ -546,9 +545,7 @@ def find_template(g, g_template, verbose, template, ver):
             if mapping != 0 and len(mapping) > 1:
                 logging.info("####### STARTING NEW FIND TEMPLATE: #######")
 
-                g_tmp_template, tmp_mapping = run_replace_greedy(
-                    g, g_template, mapping, 0
-                )
+                g_tmp_template, tmp_mapping = run_replace_greedy(g, g_template, mapping, 0)
                 # g_tmp_template,tmp_mapping = run_replace(g,g_template,mapping,0)
 
                 save_checkpoint(g, g_tmp_template, tmp_mapping)
@@ -644,7 +641,7 @@ def find(ip, filename):
         import_dcp(filename)
         filename = filename.replace(".dcp", ".json")
 
-    fj = open(DATA_DIR / ip / "json" / "templates.json")
+    fj = open(LIB_DIR / ip / "json" / "templates.json")
     tmp = json.load(fj)
     templates = tmp["templates"]
     used_list = tmp["used"]
@@ -674,10 +671,7 @@ def find(ip, filename):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "ip",
-        help="Xilinx IP name"
-    )
+    parser.add_argument("ip", help="Xilinx IP name")
     parser.add_argument("filename", nargs=1)
     parser.add_argument("--log", default="warning")  # Selects the target tile typ
 
